@@ -9,8 +9,7 @@ on:
         required: false
         default: '1024'
   schedule:
-    - cron: 23 10 * * 5
-    - cron: 20 10 * * 3
+    - cron: 10 10 * * 5
 env:
   ImageBuilderVersion: x86-64-openwrt-24.10  # 详见https://hub.docker.com/r/immortalwrt/imagebuilder
 
