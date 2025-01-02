@@ -8,8 +8,6 @@ on:
         description: '设置软件包大小 单位(MB)'
         required: false
         default: '1024'
-  schedule:
-    - cron: 10 10 * * 5
 env:
   ImageBuilderVersion: x86-64-openwrt-24.10  # 详见https://hub.docker.com/r/immortalwrt/imagebuilder
 
