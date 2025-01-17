@@ -5,19 +5,19 @@ on:
   workflow_dispatch:
     inputs:
       rootfs_partsize:
-        description: '设置软件包大小 单位(MB)'
+        description: "设置软件包大小 单位(MB)"
         required: false
-        default: '1024'
+        default: "1024"
       include_docker:
-        description: '是否编译 Docker 插件'
+        description: "是否编译 Docker 插件"
         required: true
-        default: 'no'
+        default: "no"
         type: choice
         options:
-          - 'yes'
-          - 'no'
+          - "yes"
+          - "no"
 env:
-  ImageBuilderVersion: x86-64-openwrt-24.10  # 详见https://hub.docker.com/r/immortalwrt/imagebuilder
+  ImageBuilderVersion: x86-64-openwrt-24.10 # 详见https://hub.docker.com/r/immortalwrt/imagebuilder
 
 jobs:
   build:
@@ -25,7 +25,7 @@ jobs:
 
     steps:
       - name: 拉取仓库
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: 加载自定义配置
         run: |
@@ -54,6 +54,8 @@ jobs:
           ls -l ${{ github.workspace }}/bin/targets/x86/64/
           mkdir -p ${{ github.workspace }}/dist
           cp ${{ github.workspace }}/bin/targets/x86/64/*squashfs-combined-efi.img.gz ${{ github.workspace }}/dist
+          cp ${{ github.workspace }}/bin/targets/x86/64/*rootfs.tar.gz ${{ github.workspace }}/dist
+          cp ${{ github.workspace }}/bin/targets/x86/64/*squashfs-combined-efi.img.gz ${{ github.workspace }}/dist
           ls -l ${{ github.workspace }}/dist
 
       - name: 生成release信息
@@ -70,25 +72,20 @@ jobs:
 
       - name: 发布固件
         id: release
-        uses: ncipollo/release-action@main
+        uses: softprops/action-gh-release@v2
         with:
-          allowUpdates: true
-          tag: x86_64🔥${{ steps.tag.outputs.release_name }}
-          removeArtifacts: false
+          tag_name: x86_64
+          name: x86_64🔥${{ steps.tag.outputs.release_name }}
+          append_body: true
+          body_path: release.txt
+          files: |
+            ${{ github.workspace }}/dist/**
           token: ${{ secrets.GITHUB_TOKEN }}
-          bodyFile: release.txt
-          artifacts: ${{ github.workspace }}/dist
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: 清理Workflow
-        uses: Mattraks/delete-workflow-runs@main
+        uses: Mattraks/delete-workflow-runs@v2
         with:
           retain_days: 1
           keep_minimum_runs: 0
-
-      - name: 清理Releases
-        uses: dev-drprasad/delete-older-releases@master
-        with:
-          keep_latest: 10
-          delete_tags: true
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
