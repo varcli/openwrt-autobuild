@@ -55,7 +55,9 @@ jobs:
           mkdir -p ${{ github.workspace }}/dist
           cp ${{ github.workspace }}/bin/targets/x86/64/*squashfs-combined-efi.img.gz ${{ github.workspace }}/dist
           cp ${{ github.workspace }}/bin/targets/x86/64/*rootfs.tar.gz ${{ github.workspace }}/dist
-          cp ${{ github.workspace }}/bin/targets/x86/64/*squashfs-combined-efi.img.gz ${{ github.workspace }}/dist
+          cp ${{ github.workspace }}/bin/targets/x86/64/*squashfs-combined-efi.vdi ${{ github.workspace }}/dist
+          cp ${{ github.workspace }}/bin/targets/x86/64/*squashfs-combined-efi.vhdx ${{ github.workspace }}/dist
+          cp ${{ github.workspace }}/bin/targets/x86/64/*squashfs-combined-efi.vmdk ${{ github.workspace }}/dist
           ls -l ${{ github.workspace }}/dist
 
       - name: 生成release信息
