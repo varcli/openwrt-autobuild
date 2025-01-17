@@ -24,7 +24,7 @@ jobs:
     runs-on: ubuntu-22.04
 
     steps:
-      - name: Checkout
+      - name: 拉取仓库
         uses: actions/checkout@v3
 
       - name: 加载自定义配置
@@ -52,11 +52,10 @@ jobs:
         id: files
         run: |
           cd ${{ github.workspace }}/bin/targets/x86/64/
-          rm -rf packages
-          rm -rf *.buildinfo
-          rm -rf *.manifest
-          rm -rf *-kernel.bin
-          rm -rf sha256sums
+          ls -l
+          mkdir -p ${{ github.workspace }}/dist
+          cp ${{ github.workspace }}/bin/targets/x86/64/*squashfs-combined-efi.img.gz ${{ github.workspace }}/dist
+          cd ${{ github.workspace }}/dist
           ls -l
 
       - name: 生成release信息
@@ -80,7 +79,7 @@ jobs:
           removeArtifacts: false
           token: ${{ secrets.GITHUB_TOKEN }}
           bodyFile: release.txt
-          artifacts: ${{ github.workspace }}/bin/targets/x86/64/*
+          artifacts: ${{ github.workspace }}/dist
 
       - name: 清理Workflow
         uses: Mattraks/delete-workflow-runs@main
