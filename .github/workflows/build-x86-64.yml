@@ -85,7 +85,8 @@ jobs:
         if: env.COMPILESTATUS == 'success' && !cancelled()
         uses: softprops/action-gh-release@v2
         with:
-          name: ${{ matrix.target }}⭐️${{ steps.release_info.outputs.release_name }}
+          # name: ${{ matrix.target }}⭐️${{ steps.release_info.outputs.release_name }}
+          tag_name: ${{ matrix.target }}⭐️${{ steps.release_info.outputs.release_name }}
           body_path: release.txt
           files: |
             ${{ github.workspace }}/dist/**
