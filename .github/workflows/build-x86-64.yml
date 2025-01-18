@@ -59,12 +59,13 @@ jobs:
         if: env.COMPILESTATUS == 'success' && !cancelled()
         run: |
           ls -l ${{ github.workspace }}/bin/targets/x86/64/
+          rm -rf ${{ github.workspace }}/bin/targets/x86/64/*-kernel.bin
+          rm -rf ${{ github.workspace }}/bin/targets/x86/64/*.manifest
+          rm -rf ${{ github.workspace }}/bin/targets/x86/64/*.json
+          rm -rf ${{ github.workspace }}/bin/targets/x86/64/sha256sums
           mkdir -p ${{ github.workspace }}/dist
-          cp ${{ github.workspace }}/bin/targets/x86/64/*squashfs-combined-efi.img.gz ${{ github.workspace }}/dist
-          cp ${{ github.workspace }}/bin/targets/x86/64/*rootfs.tar.gz ${{ github.workspace }}/dist
-          cp ${{ github.workspace }}/bin/targets/x86/64/*squashfs-combined-efi.vdi ${{ github.workspace }}/dist
-          cp ${{ github.workspace }}/bin/targets/x86/64/*squashfs-combined-efi.vhdx ${{ github.workspace }}/dist
-          cp ${{ github.workspace }}/bin/targets/x86/64/*squashfs-combined-efi.vmdk ${{ github.workspace }}/dist
+          cp /home/build/immortalwrt/.config  ${{ github.workspace }}/dist
+          cp ${{ github.workspace }}/bin/targets/x86/64/** ${{ github.workspace }}/dist
           ls -l ${{ github.workspace }}/dist
 
       - name: 生成release信息
@@ -85,8 +86,8 @@ jobs:
         if: env.COMPILESTATUS == 'success' && !cancelled()
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ matrix.target }}
-          name: ${{ matrix.target }}⭐️${{ steps.release_info.outputs.release_name }}
+          tag_name: ${{ matrix.target }}⭐️${{ steps.release_info.outputs.release_name }}
+          name: ${{ matrix.target }}
           append_body: true
           body_path: release.txt
           files: |

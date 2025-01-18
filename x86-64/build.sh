@@ -4,10 +4,6 @@
 # sed -i "s/CONFIG_ISO_IMAGES=y/# CONFIG_ISO_IMAGES is not set/" .config
 # sed -i "s/CONFIG_TARGET_ROOTFS_PARTSIZE=300/CONFIG_TARGET_ROOTFS_PARTSIZE=$ROOTFS_PARTSIZE/" .config
 
-
-# 打印 info
-make info
-
 # 输出调试信息
 echo "$(date '+%Y-%m-%d %H:%M:%S') - 开始编译..."
 
@@ -48,8 +44,11 @@ fi
 
 echo "$(date '+%Y-%m-%d %H:%M:%S') - 编译自定义插件为：$PACKAGES"
 
+# 打印 info
+make info
+
 # 构建镜像
-make image PROFILE="$PROFILE" PACKAGES="$PACKAGES" FILES="/home/build/immortalwrt/files" ROOTFS_PARTSIZE=$ROOTFS_PARTSIZE VDI_IMAGES=y VMDK_IMAGES=y VHDX_IMAGES=y TARGET_IMAGES_GZIP=y
+make image PROFILE="$PROFILE" PACKAGES="$PACKAGES" FILES="/home/build/immortalwrt/files" ROOTFS_PARTSIZE=$ROOTFS_PARTSIZE
 
 if [ $? -ne 0 ]; then
     echo "$(date '+%Y-%m-%d %H:%M:%S') - Error: 编译固件失败!"
