@@ -17,11 +17,17 @@ on:
           - "yes"
           - "no"
 env:
+  TZ: Asia/Shanghai
   ImageBuilderVersion: x86-64-openwrt-24.10 # 详见https://hub.docker.com/r/immortalwrt/imagebuilder
 
 jobs:
   build:
     runs-on: ubuntu-22.04
+
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [x86-64]
 
     steps:
       - name: 拉取仓库
@@ -29,7 +35,7 @@ jobs:
 
       - name: 加载自定义配置
         run: |
-          chmod +x ${{ github.workspace }}/x86-64/build.sh
+          chmod +x ${{ github.workspace }}/${{ matrix.target }}/build.sh
 
       - name: 编译固件
         id: compile
@@ -40,8 +46,7 @@ jobs:
             --user root \
             -v "${{ github.workspace }}/bin:/home/build/immortalwrt/bin" \
             -v "${{ github.workspace }}/files:/home/build/immortalwrt/files" \
-            -v "${{ github.workspace }}/x86-64/imm.config:/home/build/immortalwrt/.config" \
-            -v "${{ github.workspace }}/x86-64/build.sh:/home/build/immortalwrt/build.sh" \
+            -v "${{ github.workspace }}/${{ matrix.target }}/build.sh:/home/build/immortalwrt/build.sh" \
             -e ROOTFS_PARTSIZE=$rootfs_partsize \
             -e INCLUDE_DOCKER=$include_docker \
             immortalwrt/imagebuilder:${{ env.ImageBuilderVersion }} /bin/bash /home/build/immortalwrt/build.sh
@@ -50,6 +55,7 @@ jobs:
 
       - name: 整理文件
         id: files
+        if: steps.compile.outputs.status == 'success'
         run: |
           ls -l ${{ github.workspace }}/bin/targets/x86/64/
           mkdir -p ${{ github.workspace }}/dist
@@ -62,10 +68,11 @@ jobs:
 
       - name: 生成release信息
         id: release_info
+        if: steps.compile.outputs.status == 'success'
         run: |
           echo "release_name=$(date +"%Y.%m.%d-%H%M")" >> $GITHUB_OUTPUT
           touch release.txt
-          echo "⭐️x86-64固件" >> release.txt
+          echo "${{ matrix.target }} 固件" >> release.txt
           if [ "${{ github.event.inputs.include_docker }}" == "yes" ]; then
             echo "带docker功能" >> release.txt
           fi
@@ -74,10 +81,11 @@ jobs:
 
       - name: 发布固件
         id: release
+        if: steps.release_info.outputs.status == 'success'
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: x86_64
-          name: x86_64🔥${{ steps.release_info.outputs.release_name }}
+          tag_name: ${{ matrix.target }}
+          name: ${{ matrix.target }}⭐️${{ steps.release_info.outputs.release_name }}
           append_body: true
           body_path: release.txt
           files: |
@@ -87,6 +95,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: 清理Workflow
+        if: steps.compile.outputs.status == 'success'
         uses: Mattraks/delete-workflow-runs@v2
         with:
           retain_days: 1
