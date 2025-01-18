@@ -55,7 +55,7 @@ jobs:
 
       - name: 整理文件
         id: files
-        if: steps.compile.outputs.status == 'success'
+        if: env.COMPILESTATUS == 'success' && !cancelled()
         run: |
           ls -l ${{ github.workspace }}/bin/targets/x86/64/
           mkdir -p ${{ github.workspace }}/dist
@@ -68,7 +68,7 @@ jobs:
 
       - name: 生成release信息
         id: release_info
-        if: steps.compile.outputs.status == 'success'
+        if: env.COMPILESTATUS == 'success' && !cancelled()
         run: |
           echo "release_name=$(date +"%Y.%m.%d-%H%M")" >> $GITHUB_OUTPUT
           touch release.txt
@@ -81,7 +81,7 @@ jobs:
 
       - name: 发布固件
         id: release
-        if: steps.release_info.outputs.status == 'success'
+        if: env.COMPILESTATUS == 'success' && !cancelled()
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ matrix.target }}
