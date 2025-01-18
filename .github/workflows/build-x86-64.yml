@@ -60,7 +60,6 @@ jobs:
         run: |
           ls -l ${{ github.workspace }}/bin/targets/x86/64/
           mkdir -p ${{ github.workspace }}/dist
-          cp ${{ github.workspace }}/x86-64/.config  ${{ github.workspace }}/dist
           cp ${{ github.workspace }}/bin/targets/x86/64/** ${{ github.workspace }}/dist
           rm -rf ${{ github.workspace }}/dist/*-kernel.bin
           rm -rf ${{ github.workspace }}/dist/*.manifest
@@ -86,9 +85,7 @@ jobs:
         if: env.COMPILESTATUS == 'success' && !cancelled()
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ matrix.target }}⭐️${{ steps.release_info.outputs.release_name }}
-          name: ${{ matrix.target }}
-          append_body: true
+          name: ${{ matrix.target }}⭐️${{ steps.release_info.outputs.release_name }}
           body_path: release.txt
           files: |
             ${{ github.workspace }}/dist/**
