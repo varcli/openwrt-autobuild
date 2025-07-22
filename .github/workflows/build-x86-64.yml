@@ -5,7 +5,7 @@ on:
   workflow_dispatch:
     inputs:
       rootfs_partsize:
-        description: "设置软件包大小 单位(MB)"
+        description: "请输入要编译固件大小 单位(MB)"
         required: false
         default: "1024"
       include_docker:
@@ -18,7 +18,7 @@ on:
           - "no"
 env:
   TZ: Asia/Shanghai
-  ImageBuilderVersion: x86-64-openwrt-24.10.0 # 详见https://hub.docker.com/r/immortalwrt/imagebuilder
+  ImageBuilderVersion: x86-64-openwrt-24.10.2 # 详见https://hub.docker.com/r/immortalwrt/imagebuilder
 
 jobs:
   build:
