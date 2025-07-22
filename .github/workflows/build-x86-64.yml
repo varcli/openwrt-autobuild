@@ -46,7 +46,8 @@ jobs:
             --user root \
             -v "${{ github.workspace }}/bin:/home/build/immortalwrt/bin" \
             -v "${{ github.workspace }}/files:/home/build/immortalwrt/files" \
-            -v "${{ github.workspace }}/x86-64/.config:/home/build/immortalwrt/.config" \
+            -v "${{ github.workspace }}/${{ matrix.target }}/.config:/home/build/immortalwrt/.config" \
+            -v "${{ github.workspace }}/shell:/home/build/immortalwrt/shell" \
             -v "${{ github.workspace }}/${{ matrix.target }}/build.sh:/home/build/immortalwrt/build.sh" \
             -e ROOTFS_PARTSIZE=$rootfs_partsize \
             -e INCLUDE_DOCKER=$include_docker \
