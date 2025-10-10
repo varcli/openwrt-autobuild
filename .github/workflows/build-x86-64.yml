@@ -18,7 +18,7 @@ on:
           - "no"
 env:
   TZ: Asia/Shanghai
-  ImageBuilderVersion: x86-64-openwrt-24.10.2 # 详见https://hub.docker.com/r/immortalwrt/imagebuilder
+  ImageBuilderVersion: x86-64-openwrt-24.10.3 # 详见https://hub.docker.com/r/immortalwrt/imagebuilder
 
 jobs:
   build:
