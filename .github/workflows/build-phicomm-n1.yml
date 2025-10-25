@@ -158,10 +158,12 @@ jobs:
         if: env.COMPILESTATUS == 'success' && !cancelled()
         run: |
           ls -l ${{ env.PACKAGED_OUTPUTPATH }}
-          FILE=$(ls ${{ env.PACKAGED_OUTPUTPATH }}/*.img.gz | head -n1)
-          echo "Image file is: $FILE"
           mkdir -p ${{ github.workspace }}/dist
-          cp $FILE ${{ github.workspace }}/dist/
+          cp ${{ env.PACKAGED_OUTPUTPATH }}/** ${{ github.workspace }}/dist
+          rm -rf ${{ github.workspace }}/dist/*-kernel.bin
+          rm -rf ${{ github.workspace }}/dist/*.manifest
+          rm -rf ${{ github.workspace }}/dist/*.json
+          rm -rf ${{ github.workspace }}/dist/sha256sums
           ls -l ${{ github.workspace }}/dist
 
       - name: 生成release信息
