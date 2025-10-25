@@ -4,8 +4,8 @@
 
 https://mirrors.vsean.net/openwrt/releases/ <br>
 https://mirrors.sjtug.sjtu.edu.cn/immortalwrt/releases/ <br>
-https://dl.openwrt.ai/
-https://github.com/wukongdaily/store/
+https://dl.openwrt.ai/ <br>
+https://github.com/wukongdaily/store/ <br>
 
 
 ## 🌟鸣谢
