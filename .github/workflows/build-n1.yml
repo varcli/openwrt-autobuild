@@ -1,0 +1,202 @@
+name: build-x86-64
+
+on:
+  repository_dispatch:
+  workflow_dispatch:
+    inputs:
+      rootfs_partsize:
+        description: "请输入要编译固件大小 单位(MB)"
+        required: false
+        default: "1024"
+      include_docker:
+        description: "是否编译 Docker 插件"
+        required: true
+        default: "yes"
+        type: choice
+        options:
+          - "yes"
+          - "no"
+      openwrt_kernel:
+        description: "选择构建的内核(斐讯N1)"
+        required: false
+        default: "6.6.93"
+        type: choice
+        options:
+          - 5.4.291
+          - 5.10.235
+          - 5.15.189
+          - 6.1.121
+          - 6.1.122
+          - 6.1.123
+          - 6.1.124
+          - 6.1.126
+          - 6.1.127
+          - 6.1.128
+          - 6.1.129
+          - 6.1.130
+          - 6.1.131
+          - 6.1.132
+          - 6.1.133
+          - 6.1.134
+          - 6.1.135
+          - 6.1.136
+          - 6.1.138
+          - 6.1.139
+          - 6.1.140
+          - 6.1.141
+          - 6.1.142
+          - 6.1.144
+          - 6.1.146
+          - 6.6.67
+          - 6.6.68
+          - 6.6.69
+          - 6.6.70
+          - 6.6.71
+          - 6.6.72
+          - 6.6.74
+          - 6.6.76
+          - 6.6.79
+          - 6.6.80
+          - 6.6.81
+          - 6.6.83
+          - 6.6.84
+          - 6.6.85
+          - 6.6.86
+          - 6.6.87
+          - 6.6.88
+          - 6.6.89
+          - 6.6.90
+          - 6.6.91
+          - 6.6.92
+          - 6.6.93
+          - 6.6.94
+          - 6.6.95
+          - 6.6.97
+          - 6.6.99
+          - 6.12.16
+          - 6.12.17
+          - 6.12.18
+          - 6.12.19
+          - 6.12.20
+          - 6.12.21
+          - 6.12.22
+          - 6.12.23
+          - 6.12.24
+          - 6.12.25
+          - 6.12.26
+          - 6.12.28
+          - 6.12.29
+          - 6.12.30
+          - 6.12.31
+          - 6.12.32
+          - 6.12.33
+          - 6.12.34
+          - 6.12.35
+          - 6.12.37
+          - 6.12.39
+env:
+  TZ: Asia/Shanghai
+  ImageBuilderVersion: armsr-armv8-openwrt-24.10.3 # 详见https://hub.docker.com/r/immortalwrt/imagebuilder
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [phicomm-n1]
+
+    steps:
+      - name: 拉取仓库
+        uses: actions/checkout@v4
+
+      - name: 加载自定义配置
+        run: |
+          chmod +x ${{ github.workspace }}/${{ matrix.target }}/build.sh
+
+      - name: 编译固件
+        id: compile
+        run: |
+          size="${{ github.event.inputs.rootfs_partsize }}"
+          include_docker="${{ github.event.inputs.include_docker }}"
+          docker run --rm -i \
+            --user root \
+            -v "${{ github.workspace }}/bin:/home/build/immortalwrt/bin" \
+            -v "${{ github.workspace }}/files:/home/build/immortalwrt/files" \
+            -v "${{ github.workspace }}/${{ matrix.target }}/.config:/home/build/immortalwrt/.config" \
+            -v "${{ github.workspace }}/shell:/home/build/immortalwrt/shell" \
+            -v "${{ github.workspace }}/${{ matrix.target }}/build.sh:/home/build/immortalwrt/build.sh" \
+            -e ROOTFS_PARTSIZE=$rootfs_partsize \
+            -e INCLUDE_DOCKER=$include_docker \
+            immortalwrt/imagebuilder:${{ env.ImageBuilderVersion }} /bin/bash /home/build/immortalwrt/build.sh
+
+          echo "COMPILESTATUS=success" >> $GITHUB_ENV
+
+      - name: 查找 rootfs.tar.gz 所在路径
+        id: find_rootfs
+        run: |
+          ROOTFS_FILE=$(find bin/targets/*/*/ -type f -name "*rootfs.tar.gz" | head -n1)
+          echo "✅ Found: $ROOTFS_FILE"
+          if [ ! -f "$ROOTFS_FILE" ]; then
+            echo "❌ 找不到 rootfs.tar.gz 文件"
+            exit 1
+          fi
+          echo "file=$ROOTFS_FILE" >> $GITHUB_OUTPUT
+
+      - name: 打包 Armvirt as ImmortalWrt for N1
+        uses: ophub/flippy-openwrt-actions@main
+        if: env.COMPILESTATUS == 'success' && !cancelled()
+        env:
+          OPENWRT_ARMVIRT: ${{ steps.find_rootfs.outputs.file }}
+          PACKAGE_SOC: s905d
+          KERNEL_VERSION_NAME: ${{ inputs.openwrt_kernel }}
+          WHOAMI: varcli
+
+      - name: 整理文件
+        id: files
+        if: env.COMPILESTATUS == 'success' && !cancelled()
+        run: |
+          ls -l ${{ github.workspace }}/bin/targets/*/*/
+          mkdir -p ${{ github.workspace }}/dist
+          cp ${{ github.workspace }}/bin/targets/*/*/** ${{ github.workspace }}/dist
+          rm -rf ${{ github.workspace }}/dist/*-kernel.bin
+          rm -rf ${{ github.workspace }}/dist/*.manifest
+          rm -rf ${{ github.workspace }}/dist/*.json
+          rm -rf ${{ github.workspace }}/dist/sha256sums
+          ls -l ${{ github.workspace }}/dist
+
+      - name: 生成release信息
+        id: release_info
+        if: env.COMPILESTATUS == 'success' && !cancelled()
+        run: |
+          echo "release_name=$(date +"%Y.%m.%d-%H%M")" >> $GITHUB_OUTPUT
+          touch release.txt
+          echo "${{ matrix.target }} 固件" >> release.txt
+          echo "内核版本 ${{ github.event.inputs.openwrt_kernel }}" >> release.txt
+          if [ "${{ github.event.inputs.include_docker }}" == "yes" ]; then
+            echo "带docker功能" >> release.txt
+          fi
+          echo "账户：root" >> release.txt
+          echo "密码：无" >> release.txt
+
+      - name: 发布固件
+        id: release
+        if: env.COMPILESTATUS == 'success' && !cancelled()
+        uses: softprops/action-gh-release@v2
+        with:
+          # name: ${{ matrix.target }}⭐️${{ steps.release_info.outputs.release_name }}
+          tag_name: ${{ matrix.target }}⭐️${{ steps.release_info.outputs.release_name }}
+          body_path: release.txt
+          files: |
+            ${{ github.workspace }}/dist/**
+          token: ${{ secrets.GITHUB_TOKEN }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: 清理Workflow
+        if: env.COMPILESTATUS == 'success' && !cancelled()
+        uses: Mattraks/delete-workflow-runs@v2
+        with:
+          retain_days: 1
+          keep_minimum_runs: 0
