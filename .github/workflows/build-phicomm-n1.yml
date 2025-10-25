@@ -157,13 +157,11 @@ jobs:
         id: files
         if: env.COMPILESTATUS == 'success' && !cancelled()
         run: |
-          ls -l ${{ github.workspace }}/bin/targets/*/*/
+          ls -l ${{ env.PACKAGED_OUTPUTPATH }}
+          FILE=$(ls ${{ env.PACKAGED_OUTPUTPATH }}/*.img.gz | head -n1)
+          echo "Image file is: $FILE"
           mkdir -p ${{ github.workspace }}/dist
-          cp ${{ github.workspace }}/bin/targets/*/*/** ${{ github.workspace }}/dist
-          rm -rf ${{ github.workspace }}/dist/*-kernel.bin
-          rm -rf ${{ github.workspace }}/dist/*.manifest
-          rm -rf ${{ github.workspace }}/dist/*.json
-          rm -rf ${{ github.workspace }}/dist/sha256sums
+          cp $FILE ${{ github.workspace }}/dist/
           ls -l ${{ github.workspace }}/dist
 
       - name: 生成release信息
@@ -198,5 +196,5 @@ jobs:
         if: env.COMPILESTATUS == 'success' && !cancelled()
         uses: Mattraks/delete-workflow-runs@v2
         with:
-          retain_days: 1
-          keep_minimum_runs: 0
+          retain_days: 7
+          keep_minimum_runs: 3
