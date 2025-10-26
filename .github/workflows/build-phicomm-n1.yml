@@ -19,7 +19,7 @@ on:
       openwrt_kernel:
         description: "选择构建的内核(斐讯N1) 参考 https://github.com/breakingbadboy/OpenWrt/releases"
         required: false
-        default: "6.12.55"
+        default: "6.6.y_6.12.y"
         type: choice
         options:
           - 5.4.296
@@ -90,6 +90,7 @@ jobs:
           OPENWRT_ARMVIRT: ${{ steps.find_rootfs.outputs.file }}
           PACKAGE_SOC: s905d
           KERNEL_VERSION_NAME: ${{ inputs.openwrt_kernel }}
+          KERNEL_AUTO_LATEST: true
           WHOAMI: varcli
 
       - name: 整理文件
