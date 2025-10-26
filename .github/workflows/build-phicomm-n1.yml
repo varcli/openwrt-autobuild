@@ -22,17 +22,14 @@ on:
         default: "6.6.y_6.12.y"
         type: choice
         options:
-          - 5.4.296
-          - 5.10.240
-          - 5.15.192
-          - 6.1.156
-          - 6.1.157
-          - 6.6.94
-          - 6.6.95
-          - 6.6.113
-          - 6.6.114
-          - 6.12.54
-          - 6.12.55
+          - "6.1.y_6.6.y_6.12.y"
+          - "6.6.y_6.12.y"
+          - "5.4.y"
+          - "5.10.y"
+          - "5.15.y"
+          - "6.1.y"
+          - "6.6.y"
+          - "6.12.y"
 env:
   TZ: Asia/Shanghai
   ImageBuilderVersion: armsr-armv8-openwrt-24.10.3 # 详见https://hub.docker.com/r/immortalwrt/imagebuilder
