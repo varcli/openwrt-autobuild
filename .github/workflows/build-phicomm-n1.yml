@@ -19,10 +19,11 @@ on:
       openwrt_kernel:
         description: "选择构建的内核(斐讯N1) 参考 https://github.com/breakingbadboy/OpenWrt/releases"
         required: false
-        default: "6.6.y_6.12.y"
+        default: "6.1.y_6.6.y"
         type: choice
         options:
           - "6.1.y_6.6.y_6.12.y"
+          - "6.1.y_6.6.y"
           - "6.6.y_6.12.y"
           - "5.4.y"
           - "5.10.y"
