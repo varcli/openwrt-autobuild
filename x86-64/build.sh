@@ -2,6 +2,7 @@
 
 # Log file for debugging
 source shell/custom-packages.sh
+source shell/switch_repository.sh
 echo "第三方软件包: $CUSTOM_PACKAGES"
 
 # 修改配置文件
@@ -87,7 +88,7 @@ if echo "$PACKAGES" | grep -q "luci-app-openclash"; then
 fi
 
 # 构建镜像
-echo "$(date '+%Y-%m-%d %H:%M:%S') - 最终包含以下自定义插件:"
+echo "$(date '+%Y-%m-%d %H:%M:%S') - 构建镜像，包含以下插件:"
 echo "$PACKAGES"
 
 # 构建镜像

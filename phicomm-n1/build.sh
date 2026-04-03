@@ -1,6 +1,7 @@
 #!/bin/bash
 # Log file for debugging
 source shell/custom-packages.sh
+source shell/switch_repository.sh
 echo "第三方软件包: $CUSTOM_PACKAGES"
 LOGFILE="/tmp/uci-defaults-log.txt"
 echo "Starting 99-custom.sh at $(date)" >> $LOGFILE
@@ -71,14 +72,14 @@ fi
 
 
 # 构建镜像
-echo "$(date '+%Y-%m-%d %H:%M:%S') - Building image with the following packages:"
+echo "$(date '+%Y-%m-%d %H:%M:%S') - 构建镜像，包含以下插件:"
 echo "$PACKAGES"
 
 make image PROFILE=$PROFILE PACKAGES="$PACKAGES" FILES="/home/build/immortalwrt/files" ROOTFS_PARTSIZE=$ROOTFS_PARTSIZE
 
 if [ $? -ne 0 ]; then
-    echo "$(date '+%Y-%m-%d %H:%M:%S') - Error: Build failed!"
+    echo "$(date '+%Y-%m-%d %H:%M:%S') - Error: 编译固件失败!"
     exit 1
 fi
 
-echo "$(date '+%Y-%m-%d %H:%M:%S') - Build completed successfully."
+echo "$(date '+%Y-%m-%d %H:%M:%S') - 编译固件完成."
