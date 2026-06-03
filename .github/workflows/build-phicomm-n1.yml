@@ -33,7 +33,7 @@ on:
           - "6.12.y"
 env:
   TZ: Asia/Shanghai
-  ImageBuilderVersion: armsr-armv8-openwrt-24.10.3 # 详见https://hub.docker.com/r/immortalwrt/imagebuilder
+  ImageBuilderVersion: armsr-armv8-openwrt-24.10.6 # 详见https://hub.docker.com/r/immortalwrt/imagebuilder
 
 jobs:
   build:
