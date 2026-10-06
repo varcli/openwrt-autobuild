@@ -21,6 +21,14 @@
 上游面向"开箱即用当主路由/客户端"，其脚本在单网口设备上设 `network.lan.proto='dhcp'`（当客户端），
 **与旁路由需求相反**。因此涉及网络部分的改动，不要把上游那套当升级目标照搬。
 
+### 运行环境：虚拟机
+
+x86-64 固件**主要安装在虚拟机中**作为旁路由运行。因此：
+
+- `x86-64/build.sh` 中的 **`qemu-ga` 必须保留**（上游已将其删除，本仓库有意保留）。
+  它提供宿主机与来宾机之间的通信通道，删掉会导致虚拟化平台无法正常管理该虚机。
+- 基于同一原因，涉及"精简包体积"的改动不要默认砍掉 qemu-ga。
+
 ## 目录结构与职责
 
 ```
@@ -97,6 +105,20 @@ README.md
 
 已知互斥（见脚本内注释）：`clashoo` ↔ `nikki`；`quickfile` ↔ `luci-app-run`。
 
+### 代理方案：以 openclash 为主
+
+x86-64 的代理插件**优先保证 `luci-app-openclash` 可用**，`passwall2` 已停用
+（功能重叠、重复占用空间），其内核 `xray-core` / `sing-box` / `hysteria` 随之一并停用。
+
+`shell/apk-custom-packages.sh` 中 openclash 那行**自带了完整依赖组**，不要当成冗余删掉：
+
+```
+luci-compat bash curl ip-full unzip kmod-tun kmod-inet-diag kmod-nft-tproxy kmod-nft-socket
+```
+
+> `build.sh` 只内置了 openclash 的 core 下载，**不带包依赖**，缺了上面的包 openclash 起不来。
+> 其中 `curl` 在 `build.sh` 里另有重复，属无害冗余。
+
 `build.sh` 中的内置逻辑：x86-64 在检测到 `luci-app-openclash` / `luci-app-ssr-plus` 时会下载
 对应架构的 clash_meta / GeoIP / GeoSite / mihomo core 并塞进 `files/`。
 
@@ -111,7 +133,9 @@ README.md
   后续若同步上游，**不要**把这部分"对齐"过去。
 - 工作流结构：未引入上游的 `luci_version` 选择器、`custom_router_ip`、PPPoE 输入、`enable_store` 开关。
 - `phicomm-n1/build.sh`：保留本仓库的 passwall / openclash / homeproxy 组合，
-  未换成上游的 filebrowser-go / filemanager；x86-64 保留了 `qemu-ga`。
+  未换成上游的 filebrowser-go / filemanager。
+- `x86-64/build.sh` 的 **`qemu-ga` 为有意保留**（上游已删除），虚拟机旁路由场景必需，
+  详见上文「运行环境：虚拟机」。
 - 未引入上游的 `arch/`、`n1/banner`、`n1/99-banner.sh`、`n1/info.md`。
 
 ### 无害但存在的冗余
@@ -133,7 +157,12 @@ README.md
   taskplan、mosdns、openclash 依赖组；补 clashoo↔nikki 冲突、openvpn-server 缺陷、daed 1.28.0 提示
 - `shell/custom-packages.sh` — N1 侧同样条目（保留 CRLF 行尾）
 
-**生效插件集合逐字节未变**，已核对 x86-64 的 9 行、N1 的 4 行 `CUSTOM_PACKAGES=`。
+**插件启用状态调整（x86-64）**
+- **停用 `passwall2`** 及其内核 `xray-core` / `sing-box` / `hysteria`（代理以 openclash 为主，避免重叠）
+- **为 `luci-app-openclash` 启用完整依赖组**：`luci-compat bash curl ip-full unzip
+  kmod-tun kmod-inet-diag kmod-nft-tproxy kmod-nft-socket`
+- `kmod-nft-tproxy` / `kmod-nft-socket` 原随 passwall2 引入，因 openclash 也需要而保留
+- N1 侧 `shell/custom-packages.sh` 的 4 行 `CUSTOM_PACKAGES=` 未变
 
 **已验证的包可用性**
 - x86-64：`build.sh` 全部 11 个内置包在 25.12.2 存在；`kmod-nft-tproxy` / `kmod-nft-socket`
