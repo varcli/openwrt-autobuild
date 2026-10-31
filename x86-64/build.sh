@@ -91,6 +91,49 @@ else
     echo "⚪️ 未选择 luci-app-openclash"
 fi
 
+# Clashoo 自带核心，仅预置其运行数据；放在 OpenClash 之后以复用相同的数据下载。
+if [[ " $PACKAGES " == *" luci-app-clashoo "* ]]; then
+    CLASHOO_DATA='files/etc/clashoo'
+    mkdir -p "$CLASHOO_DATA"
+    # 与 Clashoo 默认 geoip_source=3（Loyalsoldier）保持一致。
+    for name in GeoSite.dat geoip.dat; do
+        case "$name" in
+            GeoSite.dat) source=GeoSite.dat ;;
+            geoip.dat) source=GeoIP.dat ;;
+        esac
+        if [ -s "files/etc/openclash/$source" ]; then
+            cp "files/etc/openclash/$source" "$CLASHOO_DATA/$name"
+        else
+            download_file "https://github.com/Loyalsoldier/v2ray-rules-dat/releases/latest/download/${name,,}" "$CLASHOO_DATA/$name"
+        fi
+    done
+    download_file 'https://raw.githubusercontent.com/Loyalsoldier/geoip/release/Country.mmdb' "$CLASHOO_DATA/Country.mmdb"
+    download_file 'https://github.com/xishang0128/geoip/releases/download/latest/GeoLite2-ASN.mmdb' "$CLASHOO_DATA/GeoLite2-ASN.mmdb"
+
+    # 拦截空文件、明显截断、错误页及缺少格式标记的 MMDB。
+    for name in Country.mmdb GeoSite.dat geoip.dat GeoLite2-ASN.mmdb; do
+        minimum=1024
+        case "$name" in Country.mmdb|GeoSite.dat) minimum=2000000 ;; esac
+        if [ "$(wc -c < "$CLASHOO_DATA/$name")" -lt "$minimum" ] ||
+            head -c 256 "$CLASHOO_DATA/$name" | LC_ALL=C grep -aiEq '<!doctype[[:space:]]+html|<html'; then
+            echo "错误：Clashoo 预置数据无效：$name" >&2
+            exit 1
+        fi
+        case "$name" in
+            *.mmdb)
+                LC_ALL=C grep -aFq 'MaxMind.com' "$CLASHOO_DATA/$name" || {
+                    echo "错误：Clashoo MMDB 数据缺少格式标记：$name" >&2
+                    exit 1
+                }
+                ;;
+        esac
+        chmod 0644 "$CLASHOO_DATA/$name"
+    done
+    # mihomo 使用小写文件名；Clashoo 更新界面同时维护大写兼容文件名。
+    ln -sfn GeoSite.dat "$CLASHOO_DATA/geosite.dat"
+    echo '✅ Clashoo GeoIP、GeoSite、Country 和 ASN 数据已预置'
+fi
+
 if echo "$PACKAGES" | grep -q "luci-app-ssr-plus"; then
     echo "✅ 已选择 luci-app-ssr-plus，添加 mihomo core"
     mkdir -p files/usr/bin

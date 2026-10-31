@@ -24,8 +24,8 @@
 
 ## GitHub 加速
 
-下载镜像可选直连、`ghfast.top`、`gh-proxy.org` 和自定义 HTTPS 前缀，作用于 Release 清单和镜像。
-GitHub API 列表查询独立配置，`api_mirror` 留空时直连，填写时须使用支持 API 的前缀服务。
+GitHub 加速可选直连、`ghfast.top`、`gh-proxy.org` 和自定义 HTTPS 前缀，统一作用于 API 版本列表、Release 清单和镜像。
+加速服务须同时支持 GitHub API 和 Release 下载，不支持时可换服务或关闭加速。
 `https://gh-proxy.org/` 同时支持 API 和 Release 文件，见[服务文档](https://gh-proxy.com/docs/github-accelerator)。
 请求在路由器自身执行；DNS 失败须先修复设备的上游 DNS，单独更换镜像无效。
 日志记录实际请求地址及 curl 错误，页面直接显示失败原因，区分 DNS、HTTP 拒绝与超时。
@@ -34,7 +34,8 @@ GitHub API 列表查询独立配置，`api_mirror` 留空时直连，填写时�
 例如 `https://mirror.example.com/proxy/` 会得到 `https://mirror.example.com/proxy/https://github.com/...`。
 地址不接受 HTTP、账号密码、查询参数或 URL 片段；无需且不发送 GitHub Token。
 
-配置项为 `download_mirror=direct|ghfast|ghproxy|custom`、`custom_mirror` 和 `api_mirror`。
+配置项沿用 `download_mirror=direct|ghfast|ghproxy|custom` 和 `custom_mirror`，避免丢失原有镜像选择。
+旧 `api_mirror` 不再读取，页面保存时移除。
 修改后保存并重新检查；每个后台任务启动时读取设置，运行中页面禁止修改。
 不改写更新清单中的 GitHub 原始 URL，也不取消标签、仓库、哈希或系统校验。
 下载失败不会静默切换服务。镜像可能同时转发清单和固件，SHA256 不能证明镜像独立可信。

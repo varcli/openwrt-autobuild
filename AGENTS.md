@@ -91,6 +91,10 @@ luci-compat bash curl ip-full unzip kmod-tun kmod-inet-diag kmod-nft-tproxy kmod
 
 构建脚本下载内核和规则文件不会自动补齐这些依赖，不能当作冗余删除；curl 的重复声明无害。
 x86 按插件选择下载 OpenClash 内核、GeoIP、GeoSite、最新 apk，或 ssr-plus 所需的 mihomo。
+选择 Clashoo 时直接在 `x86-64/build.sh` 中预置 `/etc/clashoo/` 下的 Country.mmdb、
+GeoSite.dat（含小写兼容链接）、geoip.dat 和 GeoLite2-ASN.mmdb。数据源匹配其默认 Loyalsoldier 设置，
+复用同次构建已下载的 OpenClash Geo 数据；不重复下载包内核心，不默认加入其他代理核心或面板。
+预下载或数据检查失败必须终止构建；这些是构建时的数据快照，后续仍可在 Clashoo 中更新。
 
 x86 保留 `qemu-ga`，用于虚拟化平台管理来宾机；N1 集成写入 eMMC 所需的 amlogic 插件。
 这些包与代理方案无关，精简代理组件时不要一并移除。
@@ -183,8 +187,15 @@ x86 使用自带 `apk mkpkg`，N1 使用自带 `scripts/ipkg-build` 打包，再
 - 后台任务使用系统 `start-stop-daemon` 脱离 RPC，PID 文件由守护启动器写入；不能只用 shell 的 `&`，
   设备上的 rpcd 会因后台子进程误报请求超时。测试须覆盖启动失败清锁，并与原生 RPC 调用验证区分。
 - 下载与刷写分开，必须明确确认；刷写前重新核对哈希、容量和系统镜像校验。
+- 大镜像且临时空间充足时先探测 Range，再使用 4 路分段下载；逐段检查 HTTP 206、Content-Range 和长度，
+  所有写入者退出后才合并。服务不支持或分段失败则退回普通下载，不降低整包 SHA256 和系统校验要求。
+  退出时须终止分段子进程并清理暂存文件；合并期间按两倍压缩镜像容量预留空间。
+- 选择固件区展示发布时间、镜像文件及 Release 更新说明，说明按不可信纯文本展示，不注入 HTML。
+  构建、配置和 SHA256 保留在后端及刷写确认流程，不作为选择区的独立信息行。
 - 分区布局变化必须提示；保留配置通过系统备份清单处理，不承诺保留整个 overlay 或额外磁盘数据。
-- 下载默认直连，可选 ghfast、ghproxy 或自定义 HTTPS 前缀，作用于清单和镜像；API 前缀独立设置，默认直连。
+- GitHub 加速默认直连，可选 ghfast、ghproxy 或自定义 HTTPS 前缀，统一作用于 API 列表、清单和镜像。
+  保留 download_mirror/custom_mirror 配置名以兼容原有选择；旧 api_mirror 不再读取，页面保存时移除。
+  加速服务须支持 API 和 Release 文件，不静默为 API 另选服务。
   前缀后拼接完整原始 URL，禁止账号、查询参数和片段，不静默切换服务；不得改写清单内的原始 GitHub URL。
 - 更新信任来源是配置的 GitHub 仓库、所选镜像及 HTTPS；镜像可能同时提供清单和固件，SHA256 校验不等于独立固件签名。
 

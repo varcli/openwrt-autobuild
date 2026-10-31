@@ -27,14 +27,11 @@ load_transport() {
         ghproxy) DOWNLOAD_PREFIX='https://gh-proxy.org' ;;
         custom)
             DOWNLOAD_PREFIX=$(uci -q get online-upgrade.main.custom_mirror 2>/dev/null || true)
-            https_prefix "$DOWNLOAD_PREFIX" || die '自定义下载加速地址必须是有效的 HTTPS 前缀，不能包含账号、查询参数或片段。'
+            https_prefix "$DOWNLOAD_PREFIX" || die 'GitHub 加速地址必须是有效的 HTTPS 前缀，不能包含账号、查询参数或片段。'
             ;;
-        *) die '未知的下载镜像，请重新保存加速设置。' ;;
+        *) die '未知的 GitHub 加速选项，请重新保存加速设置。' ;;
     esac
-    API_PREFIX=$(uci -q get online-upgrade.main.api_mirror 2>/dev/null || true)
-    if [ -n "$API_PREFIX" ]; then
-        https_prefix "$API_PREFIX" || die 'API 加速地址必须是有效的 HTTPS 前缀。'
-    fi
+    # 沿用已有 download_mirror 配置；旧 api_mirror 不再覆盖统一加速选择。
 }
 
 mkdir -p "$STATE"
@@ -79,14 +76,19 @@ load_identity() {
     load_transport
 }
 
-download() {
-    local address="$1" prefix result=0
+download_address() {
+    local address="$1" prefix
     case "$address" in
-        https://api.github.com/*) prefix="$API_PREFIX" ;;
-        https://github.com/*) prefix="$DOWNLOAD_PREFIX" ;;
+        https://api.github.com/*|https://github.com/*) prefix="$DOWNLOAD_PREFIX" ;;
         *) die '不支持的 GitHub 下载地址。' ;;
     esac
     if [ -n "$prefix" ]; then address="${prefix%/}/$address"; fi
+    printf '%s\n' "$address"
+}
+
+download() {
+    local address result=0
+    address=$(download_address "$1") || return 1
     printf '请求地址：%s\n' "$address"
     curl --fail --location --silent --show-error --proto '=https' --proto-redir '=https' \
         --connect-timeout 15 --max-time "$3" --retry 2 --retry-delay 2 \
@@ -94,11 +96,111 @@ download() {
     case "$result" in
         0) ;;
         6) die '路由器 DNS 解析失败，请检查本机及上游 DNS；更换下载镜像不能修复本机 DNS。' ;;
-        22) die '服务器拒绝请求，请查看上方 HTTP 错误码；检查版本时可配置独立的 API 加速。' ;;
-        28) die '连接或下载超时，请检查路由器网络，或更换对应的 API / 下载加速地址。' ;;
+        22) die '服务器拒绝请求，请查看上方 HTTP 错误码；GitHub 加速服务需同时支持 API 和 Release 下载。' ;;
+        28) die '连接或下载超时，请检查路由器网络，或更换 GitHub 加速地址。' ;;
         *) die "下载失败（curl 错误码 $result），请查看上方日志。" ;;
     esac
     [ -s "$2" ] || die '下载结果为空。'
+}
+
+# 仅对固件使用 Range；API 和清单仍通过普通下载读取。
+# 这两个函数只在后台子 shell 中调用；不再额外套一层 ( )，确保 $! 就是持有 trap 的进程。
+range_part() {
+    local address="$1" output="$2" start="$3" end="$4" total="$5" timeout="$6" code curl_pid=''
+    cleanup_range() {
+        trap - EXIT HUP INT TERM
+        if [ -n "$curl_pid" ]; then
+            kill "$curl_pid" 2>/dev/null || true
+            wait "$curl_pid" 2>/dev/null || true
+        fi
+        rm -f "$output.code"
+    }
+    trap cleanup_range EXIT
+    trap 'exit 1' HUP INT TERM
+    curl --fail --location --silent --show-error --proto '=https' --proto-redir '=https' \
+        --connect-timeout 15 --max-time "$timeout" --retry 2 --retry-delay 2 \
+        --range "$start-$end" --max-filesize "$((end - start + 1))" \
+        --dump-header "$output.headers" --write-out '%{http_code}' --output "$output" "$address" > "$output.code" &
+    curl_pid=$!
+    wait "$curl_pid" || exit 1
+    curl_pid=''
+    code=$(cat "$output.code")
+    [ "$code" = 206 ] || exit 1
+    [ "$(wc -c < "$output" | tr -d ' ')" = "$((end - start + 1))" ] || exit 1
+    # 只读取最后一次响应，避免重定向或重试留下的旧响应头通过校验。
+    awk -v expected="bytes $start-$end/$total" '
+        /^HTTP\// { range="" }
+        tolower($1) == "content-range:" { sub(/\r$/, ""); range=substr($0, index($0, ":")+1); sub(/^[ \t]+/, "", range) }
+        END { exit range != expected }
+    ' "$output.headers"
+    exit 0
+}
+
+segmented_download() {
+    local address="$1" parts="$STATE/segments" pids='' index start end block result=0
+    mkdir "$parts" || exit 1
+    cleanup_segments() {
+        trap - EXIT HUP INT TERM
+        if [ -n "$pids" ]; then
+            kill $pids 2>/dev/null || true
+            for child in $pids; do wait "$child" 2>/dev/null || true; done
+        fi
+        rm -f "$parts"/probe "$parts"/probe.headers "$parts"/probe.code "$parts"/part* "$parts"/log*
+        rmdir "$parts" || true
+    }
+    trap cleanup_segments EXIT
+    trap 'exit 1' HUP INT TERM
+    range_part "$address" "$parts/probe" 0 0 "$SIZE" 30 >"$parts/log-probe" 2>&1 &
+    pids=$!
+    if ! wait "$pids"; then
+        pids=''
+        echo '服务器未提供有效的分段响应，改用普通下载。'
+        exit 1
+    fi
+    pids=''
+    echo '已确认 Range 支持，开始 4 路分段下载。'
+    block=$(((SIZE + 3) / 4))
+    index=0
+    while [ "$index" -lt 4 ]; do
+        start=$((index * block)); end=$((start + block - 1))
+        [ "$end" -lt "$SIZE" ] || end=$((SIZE - 1))
+        # 每个分段负责终止自己的 curl；合并前等待所有写入者退出。
+        range_part "$address" "$parts/part$index" "$start" "$end" "$SIZE" 1800 >"$parts/log$index" 2>&1 &
+        pids="$pids $!"
+        index=$((index + 1))
+    done
+    for child in $pids; do
+        wait "$child" || result=1
+        pids="${pids# }"
+        pids="${pids#"$child"}"
+    done
+    pids=''
+    if [ "$result" != 0 ]; then
+        cat "$parts"/log[0-3]
+        echo '分段响应或长度检查失败，改用普通下载。'
+        exit 1
+    fi
+    cat "$parts/part0" "$parts/part1" "$parts/part2" "$parts/part3" > "$STATE/firmware.part" || exit 1
+    [ "$(wc -c < "$STATE/firmware.part" | tr -d ' ')" = "$SIZE" ] || exit 1
+    echo '分段合并完成，继续执行整包和系统校验。'
+    exit 0
+}
+
+download_image() {
+    local address free result=0
+    address=$(download_address "$URL") || return 1
+    free=$(df -Pk "$STATE" | awk 'END { print $4 }')
+    # 合并期间需同时容纳分段和整包；小文件和空间不足时使用普通下载。
+    if [ "$SIZE" -ge 8388608 ] && [ "$((free * 1024))" -ge "$((SIZE * 2 + 32 * 1024 * 1024))" ]; then
+        printf '分段下载地址：%s\n' "$address"
+        segmented_download "$address" &
+        RANGE_PID=$!
+        wait "$RANGE_PID" || result=$?
+        RANGE_PID=''
+        [ "$result" != 0 ] || return 0
+        rm -f "$STATE/firmware.part"
+    fi
+    download "$URL" "$STATE/firmware.part" 1800 "$SIZE"
 }
 
 validate_manifest() {
@@ -196,7 +298,7 @@ prepare_image() {
     integer "$free" || die '无法读取临时空间。'
     [ "$((free * 1024))" -ge "$((SIZE + 32 * 1024 * 1024))" ] || die '/tmp 临时空间不足，无法下载固件。'
     state downloading '正在下载镜像，请稍候…'
-    download "$URL" "$STATE/firmware.part" 900 "$SIZE"
+    download_image
     mv "$STATE/firmware.part" "$IMAGE"
     state verifying '正在校验 SHA256、启动磁盘和镜像兼容性…'
     verify_image
@@ -274,6 +376,10 @@ start_worker() {
 worker_exit() {
     result=$?
     trap - EXIT
+    if [ -n "${RANGE_PID:-}" ]; then
+        kill "$RANGE_PID" 2>/dev/null || true
+        wait "$RANGE_PID" 2>/dev/null || true
+    fi
     if [ "$result" -ne 0 ]; then
         message=$(tail -n 1 "$STATE/log" 2>/dev/null || true)
         if [ -z "$message" ] || [ "${#message}" -gt 512 ]; then message='操作失败，请查看下方日志。'; fi

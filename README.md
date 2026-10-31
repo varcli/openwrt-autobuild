@@ -1,6 +1,6 @@
 # OpenWrt AutoBuild
 
-基于 GitHub Actions 与 ImmortalWrt ImageBuilder 的固件自动构建项目，支持 **x86-64** 和 **斐讯 N1**。
+基于 GitHub Actions 与 ImmortalWrt ImageBuilder 的固件自动构建项目。
 根据识别到的网口数量应用网络默认配置，适用于单网口旁路由和多网口主路由场景。
 
 [构建工作流](https://github.com/varcli/openwrt-autobuild/actions) · [固件下载](https://github.com/varcli/openwrt-autobuild/releases)
@@ -11,8 +11,6 @@
 - **识别网口数量**：单网口采用静态旁路由配置，多网口设置主路由 LAN 管理地址。
 - **设备主页**：集中查看网络路径、资源状态、LAN 流量和常用应用，支持 x86 与 N1。
 - **按需集成插件**：通过插件清单选择代理、文件管理、流量监控等功能，可选集成 Docker。
-- **虚拟机支持**：x86-64 集成 QEMU Guest Agent，便于虚拟化平台管理。
-- **N1 镜像打包**：构建 ARM64 rootfs 后，使用 flippy 工作流打包设备镜像。
 
 ## 支持的设备
 
@@ -96,8 +94,6 @@ x86 和 N1 共用 `packages/luci-app-home/` 插件源码，分别打包为 apk �
 - **网络概览**：LAN 地址、当前 IPv4 默认网关、DNS 和 DHCPv4 配置；根据当前配置显示旁路由、主路由或自定义网络。
 - **设备状态**：CPU、内存、根分区可用空间及运行时间。首次采样时 CPU 和流量暂不显示数值。
 - **LAN 实时流量**：每 5 秒刷新，保留最近 30 次采样；统计包含本地通信，不代表互联网带宽或连通性。
-- **IP 与分流检测**：提供 [IP 与连通性](https://ip.skk.moe/) 和 [网站分流测试](https://ip.skk.moe/split-tunnel) 外部入口，点击后在新标签打开 Sukka 在线工具。
-  打开主页不会自动请求外部检测服务；结果遵循当前浏览器的网络和代理设置，不代表路由器自身出口。
 - **常用应用**：按当前可访问菜单展示 OpenClash、Clashoo、Docker、固件更新、晶晨宝盒、Bandix、文件管理和终端。
   服务状态能确认时显示运行情况，否则显示“已安装”，不把缺少状态信息当作服务正常。
 - **网络接口与快捷入口**：查看接口地址与连接状态，进入网络、DHCP、防火墙、备份和详细状态页面。
@@ -132,46 +128,6 @@ x86 固件内置 **GitHub 固件更新**，入口为 **系统 → GitHub 固件�
 
 更新仓库默认指向构建所在的 GitHub 公开仓库，也可在页面填写 `owner/repo` 更改；暂不支持私有仓库认证。
 
-下载默认直连，可选择 `ghfast.top`、`gh-proxy.org` 或自定义 HTTPS 镜像前缀，对更新清单和固件同时生效。
-版本列表默认直连 GitHub API；如需加速，另填支持 GitHub API 的加速前缀。修改后点击“保存并检查”。
-例如 `https://gh-proxy.org/` 支持 API 与 Release 文件，可分别填入对应设置。
-插件请求由路由器自身发起，浏览器能上网不代表设备网络正常。出现 DNS 解析失败时，先检查设备的上游 DNS；
-默认网关如果不提供 DNS 服务，需另设可用的 DNS。镜像地址也需要 DNS 解析，不能用换镜像代替修复 DNS。
-两类前缀均按 `https://镜像地址/完整原始URL` 拼接，例如 `https://mirror.example.com/https://github.com/...`。
-镜像异常时可切回直连或其他镜像，不自动改用其他服务；镜像同时转发清单和固件，SHA256 校验不等于独立签名。
-目标仓库须使用本项目的更新清单协议，任意固件 Release 地址不能直接通用。
-
-页面列出最近 100 条发布中的 x86 固件，按发布时间排序，默认选择最新可在线更新的版本。
-可自行选择历史版本、重装当前版本，或切换含 / 不含 Docker 的构建；Docker 仅作为固件信息展示。
-旧 Release 如果没有更新清单，会在列表中标明，不能直接在线刷写。
-
-每个 Release 同时保存镜像、`x86-64-update.json` 和 SHA256 校验文件，不再维护单独的更新通道。
-下载前读取所选 Release 的清单，最终确认绑定该 Release 与镜像哈希。
-插件仍校验设备类型、文件大小、SHA256、磁盘容量与系统升级兼容性，不自动定时刷写。
-选择较早构建时会提示配置兼容性，并默认不保留配置；分区布局变化也会单独提示。
-保留配置不等于保留整个 overlay、额外分区或 Docker 数据，升级前可下载系统配置备份。
-
-插件源码及协议见 [packages/luci-app-online-upgrade](packages/luci-app-online-upgrade/README.md)。
-
-## N1 晶晨宝盒更新
-
-N1 通过 **系统 → 晶晨宝盒 → 在线下载更新** 更新固件。
-新构建会将插件自带的公共默认更新仓库改为构建所在的仓库，Fork 后同样适用；用户另行指定的仓库会保留。
-已有设备可在晶晨宝盒“插件设置”中手动填写：
-
-| 配置项 | 本仓库设置 |
-| --- | --- |
-| OpenWrt 固件下载仓库 | `https://github.com/varcli/openwrt-autobuild` |
-| Releases Tags 关键字 | `phicomm-n1` |
-| 固件文件后缀 | `.img.gz` |
-
-N1 发布标签使用 `phicomm-n1-日期-构建编号`，镜像保留 flippy 原文件名，例如
-`openwrt_s905d_n1_R26.03.25_k6.6.120-flippy-94+.img.gz`，供插件按 `n1` 和内核分支识别。
-发版前检查设备标识、压缩文件完整性和内核分支，并为镜像生成 `sha256sums`。
-
-晶晨宝盒会在最新匹配的 N1 Release 中寻找所选内核分支。
-因此，插件的内核分支设置需与该 Release 实际包含的分支一致；工作流默认打包 `6.1.y_6.6.y`。
-此处修改的是固件下载配置，内核下载仓库及晶晨宝盒自身的升级方式沿用原设置。
 
 ## 自定义配置
 
@@ -189,20 +145,13 @@ N1 集成 OpenClash、Turbo ACC、应用过滤、分区扩容及用于写入 eMM
 两目标均包含 Argon 主题、磁盘管理、网页终端与 SFTP 服务。
 
 常用代理为 OpenClash 或 Clashoo，按需选择运行；同时集成多个插件不代表需要同时运行多个透明代理服务。
+x86 集成 Clashoo 时会在构建中预下载 Country、GeoIP、GeoSite 和 ASN 数据，减少首次启动时的在线下载。
+核心由 Clashoo 软件包提供；预置数据是构建时快照，后续可通过插件更新。
 默认不集成 Passwall、Passwall2 或 HomeProxy。
 
 编辑插件清单时，保留所选插件需要的依赖组。Clashoo 与 Nikki、Quickfile 与 luci-app-run
 存在配置冲突，避免同时集成对应组合。
 
-### 网络与文件覆盖
-
-- [files/etc/uci-defaults/99-custom.sh](files/etc/uci-defaults/99-custom.sh)：首次启动配置。
-  单网口地址由顶部的 `ROUTER_IP`、`MAIN_ROUTER_IP`、`NETMASK` 定义；多网口 LAN 地址在对应分支修改。
-- [files/etc/banner](files/etc/banner)：终端欢迎信息。
-- `files/`：需要写入固件的其他文件，按设备内的目录结构放置。
-
-`files/` 由两个目标共享，修改后会同时影响两类固件。
-更换默认地址后，同步调整客户端设置和工作流中的 Release 地址说明。
 
 ### 版本与软件包
 

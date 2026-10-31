@@ -64,23 +64,24 @@ return view.extend({
 				self.selector.value = status.release_tag || (usable[0] && usable[0].tag_name) || '';
 			}
 			if (status.release_tag && busyPhases.indexOf(status.phase) < 0) self.selector.value = status.release_tag;
-			self.targetConfig.textContent = status.include_docker == null ? '—' :
-				(status.include_docker === 'true' ? '含 Docker' : '不含 Docker') + ' / ' + status.rootfs_partsize + ' MB';
 			self.message.textContent = status.message;
 			self.message.className = 'ou-status alert-message' + (status.phase === 'error' ? ' error' : status.phase === 'ready' ? ' success' : '');
-			self.latest.textContent = status.version || '尚未查询';
 			self.filename.textContent = status.filename || '—';
-			self.checksum.textContent = status.sha256 || '—';
+			var selectedRelease = catalog.find(function(release) { return release.tag_name === status.release_tag; });
+			var published = selectedRelease && new Date(selectedRelease.published_at);
+			self.published.textContent = published && !isNaN(published.getTime()) ? published.toLocaleString() : '—';
+			// Release 内容是不可信文本，不作为 HTML 注入，也不加载远程渲染脚本。
+			self.notes.textContent = selectedRelease && typeof selectedRelease.body === 'string' && selectedRelease.body.trim() ?
+				selectedRelease.body : '此版本暂无更新说明。';
 			self.release.replaceChildren();
 			if (/^https:\/\/github\.com\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+\/releases\/tag\/[A-Za-z0-9._+-]+$/.test(status.release_url || ''))
-				self.release.appendChild(E('a', { href: status.release_url, target: '_blank', rel: 'noopener noreferrer' }, '查看本次构建与更新说明'));
+				self.release.appendChild(E('a', { href: status.release_url, target: '_blank', rel: 'noopener noreferrer' }, '在 GitHub Releases 查看 ↗'));
 			self.log.textContent = results[1] || '暂无日志。';
 			var busy = busyPhases.indexOf(status.phase) >= 0;
 			self.checkButton.disabled = busy || !self.writable;
 			self.saveButton.disabled = busy || !self.writable;
 			self.mirror.disabled = busy || !self.writable;
 			self.customMirror.disabled = busy || !self.writable;
-			self.apiMirror.disabled = busy || !self.writable;
 			self.repository.disabled = busy || !self.writable;
 			self.selector.disabled = busy || !self.writable || !usable.length;
 			self.downloadButton.disabled = !self.writable || status.phase !== 'available';
@@ -139,7 +140,7 @@ return view.extend({
 		var content = [
 			E('p', {}, '即将安装构建 ' + selected.version + '，设备会重启并短暂断网。'),
 			E('p', {}, selected.filename),
-			E('p', {}, this.targetConfig.textContent),
+			E('p', {}, (selected.include_docker === 'true' ? '含 Docker' : '不含 Docker') + ' / ' + selected.rootfs_partsize + ' MB'),
 			E('label', {}, [keep, ' 保留配置（按系统备份清单，不保留整个 overlay）']),
 			E('p', {}, '继续前请在“备份/升级”页面下载一份配置备份。插件和代理内核以新固件为准。')
 		];
@@ -171,7 +172,6 @@ return view.extend({
 		this.selector = E('select', { 'class': 'cbi-input-select', disabled: true, 'aria-label': '选择固件', change: function(event) {
 			return self.start('select', event.target.value);
 		}});
-		this.targetConfig = E('span', {}, '—');
 		var repository = E('input', {
 			'class': 'cbi-input-text', value: uci.get('online-upgrade', 'main', 'repository') || build.repository,
 			'aria-label': 'GitHub 仓库', disabled: writable ? null : true
@@ -186,7 +186,7 @@ return view.extend({
 			self.customMirror.placeholder = self.mirror.value === 'direct' ? '直连 GitHub，无镜像前缀' : 'https://mirror.example.com/';
 			previousMirror = self.mirror.value;
 		}
-		this.mirror = E('select', { 'class': 'cbi-input-select', 'aria-label': '下载加速', disabled: writable ? null : true,
+		this.mirror = E('select', { 'class': 'cbi-input-select', 'aria-label': 'GitHub 加速', disabled: writable ? null : true,
 			change: syncMirrorPrefix
 		}, [
 			E('option', { value: 'direct' }, '禁用加速（直连 GitHub）'),
@@ -196,17 +196,13 @@ return view.extend({
 		]);
 		this.mirror.value = uci.get('online-upgrade', 'main', 'download_mirror') || 'direct';
 		this.customMirror = E('input', {
-			'class': 'cbi-input-text', 'aria-label': '下载镜像前缀', disabled: writable ? null : true
+			'class': 'cbi-input-text', 'aria-label': 'GitHub 加速前缀', disabled: writable ? null : true
 		});
 		syncMirrorPrefix();
-		this.apiMirror = E('input', {
-			'class': 'cbi-input-text', 'aria-label': 'API 加速前缀', placeholder: '留空直连 GitHub API',
-			value: uci.get('online-upgrade', 'main', 'api_mirror') || '', disabled: writable ? null : true
-		});
 		this.message = E('p', { 'class': 'ou-status alert-message', role: 'status', 'aria-live': 'polite' }, '点击检查更新。');
-		this.latest = E('span', {}, '尚未查询');
 		this.filename = E('span', {}, '—');
-		this.checksum = E('code', { style: 'overflow-wrap:anywhere' }, '—');
+		this.published = E('span', {}, '—');
+		this.notes = E('div', { 'class': 'ou-release-notes' }, '选择版本后显示更新说明。');
 		this.release = E('span', {}, '—');
 		this.log = E('pre', { 'class': 'ou-log' }, '暂无日志。');
 		this.saveButton = E('button', { 'class': 'btn', disabled: writable ? null : true, click: function() {
@@ -215,9 +211,9 @@ return view.extend({
 				ui.addNotification(null, E('p', {}, '仓库格式应为 owner/repo。'));
 				return;
 			}
-			var mirror = self.mirror.value, custom = (mirror === 'custom' ? self.customMirror.value : customMirrorDraft).trim(), api = self.apiMirror.value.trim();
+			var mirror = self.mirror.value, custom = (mirror === 'custom' ? self.customMirror.value : customMirrorDraft).trim();
 			if (['direct', 'ghfast', 'ghproxy', 'custom'].indexOf(mirror) < 0 ||
-				(mirror === 'custom' && !validPrefix(custom)) || (api && !validPrefix(api))) {
+				(mirror === 'custom' && !validPrefix(custom))) {
 				ui.addNotification(null, E('p', {}, '加速地址应为 HTTPS 前缀，不能包含账号、查询参数或片段。'));
 				return;
 			}
@@ -225,7 +221,7 @@ return view.extend({
 			uci.set('online-upgrade', 'main', 'repository', value);
 			uci.set('online-upgrade', 'main', 'download_mirror', mirror);
 			uci.set('online-upgrade', 'main', 'custom_mirror', custom);
-			uci.set('online-upgrade', 'main', 'api_mirror', api);
+			uci.unset('online-upgrade', 'main', 'api_mirror');
 			return uci.save().then(function() { return commitConfig('online-upgrade'); }).then(function(result) {
 				if (result && result.error) throw new Error('保存仓库配置失败。');
 				return self.start('check');
@@ -254,23 +250,23 @@ return view.extend({
 			]),
 			E('div', { 'class': 'ou-grid' }, [
 				E('section', { 'class': 'cbi-section ou-panel' }, [
-					E('h3', {}, '更新源与 GitHub 加速'),
-					row('GitHub 仓库', repository), row('固件下载加速', this.mirror), row('镜像前缀', this.customMirror),
-					row('版本检查加速（API）', [this.apiMirror, E('p', { 'class': 'ou-field-help' }, '版本列表单独使用此地址；仅设置下载加速不会加速版本检查。')]),
-					E('div', { 'class': 'ou-settings-action' }, this.saveButton),
-					E('details', { 'class': 'ou-help' }, [
-						E('summary', {}, '镜像地址说明'),
-						E('p', {}, '保存并检查后生效。下载镜像用于清单和固件；版本列表默认直连 GitHub API。API 加速须使用支持该接口的服务，HTTPS 前缀后拼接完整原始 URL。'),
-						E('p', {}, '镜像会转发清单和固件。SHA256 校验仍会执行，但不构成独立签名验证。')
-					])
-				]),
-				E('section', { 'class': 'cbi-section ou-panel' }, [
 					E('h3', {}, '选择固件'),
 					E('div', { 'class': 'ou-selection' }, this.selector),
 					E('p', { 'class': 'ou-help' }, '默认选择最新可用构建，也可选择历史版本或切换 Docker 配置。'),
-					E('div', { 'class': 'ou-metadata' }, [row('目标构建', this.latest), row('目标配置', this.targetConfig), row('镜像文件', this.filename), row('SHA256', this.checksum), row('更新说明', this.release)]),
+					E('div', { 'class': 'ou-metadata' }, [row('发布时间', this.published), row('镜像文件', this.filename)]),
+					E('div', { 'class': 'ou-release' }, [E('h4', {}, '更新说明'), this.notes, this.release]),
 					this.message,
 					E('div', { 'class': 'ou-actions' }, [this.downloadButton, this.upgradeButton])
+				]),
+				E('section', { 'class': 'cbi-section ou-panel' }, [
+					E('h3', {}, '更新源'),
+					row('GitHub 仓库', repository), row('GitHub 加速', this.mirror), row('镜像前缀', this.customMirror),
+					E('div', { 'class': 'ou-settings-action' }, this.saveButton),
+					E('details', { 'class': 'ou-help' }, [
+						E('summary', {}, '镜像地址说明'),
+						E('p', {}, '保存并检查后生效。版本检查、更新清单和固件下载统一使用此地址；服务需同时支持 GitHub API 和 Release 下载。HTTPS 前缀后拼接完整原始 URL。'),
+						E('p', {}, '镜像会转发清单和固件。SHA256 校验仍会执行，但不构成独立签名验证。')
+					])
 				])
 			]),
 			E('section', { 'class': 'cbi-section ou-panel ou-logs' }, [E('h3', {}, '操作日志'), this.log])

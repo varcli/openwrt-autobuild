@@ -12,12 +12,11 @@
 .ou-page .ou-current > div { display: flex; flex-direction: column; gap: 5px; }
 .ou-page .ou-label { color: var(--ou-muted); }
 .ou-page .ou-build { font-variant-numeric: tabular-nums; }
-.ou-page .ou-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr); gap: 24px; align-items: start; }
+.ou-page .ou-grid { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); gap: 24px; align-items: start; }
 .ou-page .ou-panel { min-width: 0; margin: 0; padding: 26px; }
 .ou-page .ou-panel h3 { margin-bottom: 24px; }
 .ou-page .ou-row { display: grid; grid-template-columns: 110px minmax(0, 1fr); align-items: center; gap: 12px; margin-bottom: 18px; }
 .ou-page .ou-value { min-width: 0; overflow-wrap: anywhere; }
-.ou-page .ou-field-help { margin-top: 7px; color: var(--ou-muted); }
 .ou-page .ou-value > input, .ou-page .ou-value > select, .ou-page .ou-selection > select { width: 100%; max-width: none; }
 .ou-page .ou-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 20px; }
 .ou-page .ou-settings-action { margin: 8px 0 18px 122px; }
@@ -28,6 +27,8 @@
 .ou-page .ou-selection { margin-bottom: 12px; }
 .ou-page .ou-metadata { margin-top: 18px; }
 .ou-page .ou-metadata .ou-row { padding: 11px 0; margin: 0; border-bottom: 1px solid var(--ou-line); align-items: start; }
+.ou-page .ou-release { margin-top: 20px; }
+.ou-page .ou-release-notes { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 24em; overflow: auto; margin: 12px 0; }
 .ou-page code, .ou-page pre { font-variant-numeric: tabular-nums; }
 .ou-page .ou-status { margin-top: 20px; }
 .ou-page .ou-logs { margin-top: 24px; }
