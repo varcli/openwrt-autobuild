@@ -10,6 +10,11 @@
 var command = '/usr/bin/online-upgrade.sh';
 var commitConfig = rpc.declare({ object: 'uci', method: 'commit', params: ['config'] });
 var busyPhases = ['checking', 'selecting', 'downloading', 'verifying', 'flashing'];
+var prefixPattern = /^https:\/\/[A-Za-z0-9](?:[A-Za-z0-9.-]*[A-Za-z0-9])?(?::[0-9]{1,5})?(?:\/[A-Za-z0-9._~%\/-]*)?$/;
+
+function validPrefix(value) {
+	return value.length <= 512 && prefixPattern.test(value);
+}
 
 function execute(args) {
 	return fs.exec(command, args).then(function(result) {
@@ -52,7 +57,7 @@ return view.extend({
 				self.selector.replaceChildren();
 				catalog.forEach(function(release, index) {
 					var valid = usable.indexOf(release) >= 0;
-					self.selector.appendChild(E('option', { value: release.tag_name, disabled: !valid },
+					self.selector.appendChild(E('option', { value: release.tag_name, disabled: valid ? null : true },
 						(release.name || release.tag_name) + (index === 0 ? '（最新）' : '') + (valid ? '' : '（缺少更新清单）')));
 				});
 				self.selector.value = status.release_tag || (usable[0] && usable[0].tag_name) || '';
@@ -69,11 +74,15 @@ return view.extend({
 				self.release.appendChild(E('a', { href: status.release_url, target: '_blank', rel: 'noopener noreferrer' }, '查看本次构建与更新说明'));
 			self.log.textContent = results[1] || '暂无日志。';
 			var busy = busyPhases.indexOf(status.phase) >= 0;
-			self.checkButton.disabled = busy;
-			self.saveButton.disabled = busy;
-			self.selector.disabled = busy || !usable.length;
-			self.downloadButton.disabled = status.phase !== 'available';
-			self.upgradeButton.disabled = status.phase !== 'ready';
+			self.checkButton.disabled = busy || !self.writable;
+			self.saveButton.disabled = busy || !self.writable;
+			self.mirror.disabled = busy || !self.writable;
+			self.customMirror.disabled = busy || !self.writable || self.mirror.value !== 'custom';
+			self.apiMirror.disabled = busy || !self.writable;
+			self.repository.disabled = busy || !self.writable;
+			self.selector.disabled = busy || !self.writable || !usable.length;
+			self.downloadButton.disabled = !self.writable || status.phase !== 'available';
+			self.upgradeButton.disabled = !self.writable || status.phase !== 'ready';
 			if (status.phase === 'error') self.upgradeRequested = false;
 			if (status.phase === 'flashing' && self.upgradeRequested) self.waitForReboot();
 			if (status.phase === 'listed' && !self.autoSelecting) {
@@ -124,7 +133,7 @@ return view.extend({
 		var selectedVersion = selected.version.split('.').map(Number);
 		var currentVersion = this.currentVersion.split('.').map(Number);
 		var older = selectedVersion[0] < currentVersion[0] || (selectedVersion[0] === currentVersion[0] && selectedVersion[1] < currentVersion[1]);
-		var keep = E('input', { type: 'checkbox', checked: !!selected.allow_backup && !older, disabled: !selected.allow_backup });
+		var keep = E('input', { type: 'checkbox', checked: selected.allow_backup && !older ? true : null, disabled: selected.allow_backup ? null : true });
 		var content = [
 			E('p', {}, '即将安装构建 ' + selected.version + '，设备会重启并短暂断网。'),
 			E('p', {}, selected.filename),
@@ -155,6 +164,7 @@ return view.extend({
 
 	render: function(data) {
 		var self = this, build = data[0], writable = L.hasViewPermission();
+		this.writable = writable;
 		this.currentVersion = build.version;
 		this.selector = E('select', { 'class': 'cbi-input-select', disabled: true, 'aria-label': '选择固件', change: function(event) {
 			return self.start('select', event.target.value);
@@ -162,7 +172,25 @@ return view.extend({
 		this.targetConfig = E('span', {}, '—');
 		var repository = E('input', {
 			'class': 'cbi-input-text', value: uci.get('online-upgrade', 'main', 'repository') || build.repository,
-			'aria-label': 'GitHub 仓库', disabled: !writable
+			'aria-label': 'GitHub 仓库', disabled: writable ? null : true
+		});
+		this.repository = repository;
+		this.mirror = E('select', { 'class': 'cbi-input-select', 'aria-label': '下载加速', disabled: writable ? null : true,
+			change: function() { self.customMirror.disabled = !writable || self.mirror.value !== 'custom'; }
+		}, [
+			E('option', { value: 'direct' }, '直连 GitHub（默认）'),
+			E('option', { value: 'ghfast' }, 'ghfast.top'),
+			E('option', { value: 'ghproxy' }, 'gh-proxy.com'),
+			E('option', { value: 'custom' }, '自定义镜像')
+		]);
+		this.mirror.value = uci.get('online-upgrade', 'main', 'download_mirror') || 'direct';
+		this.customMirror = E('input', {
+			'class': 'cbi-input-text', 'aria-label': '自定义下载加速前缀', placeholder: 'https://mirror.example.com/',
+			value: uci.get('online-upgrade', 'main', 'custom_mirror') || '', disabled: !writable || this.mirror.value !== 'custom' ? true : null
+		});
+		this.apiMirror = E('input', {
+			'class': 'cbi-input-text', 'aria-label': 'API 加速前缀', placeholder: '留空直连 GitHub API',
+			value: uci.get('online-upgrade', 'main', 'api_mirror') || '', disabled: writable ? null : true
 		});
 		this.message = E('p', { role: 'status', 'aria-live': 'polite' }, '点击检查更新。');
 		this.latest = E('span', {}, '尚未查询');
@@ -170,14 +198,23 @@ return view.extend({
 		this.checksum = E('code', { style: 'overflow-wrap:anywhere' }, '—');
 		this.release = E('span', {}, '—');
 		this.log = E('pre', { style: 'max-height:24em;overflow:auto;white-space:pre-wrap' }, '暂无日志。');
-		this.saveButton = E('button', { 'class': 'btn', disabled: !writable, click: function() {
+		this.saveButton = E('button', { 'class': 'btn', disabled: writable ? null : true, click: function() {
 			var value = repository.value.trim();
 			if (!/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(value)) {
 				ui.addNotification(null, E('p', {}, '仓库格式应为 owner/repo。'));
 				return;
 			}
+			var mirror = self.mirror.value, custom = self.customMirror.value.trim(), api = self.apiMirror.value.trim();
+			if (['direct', 'ghfast', 'ghproxy', 'custom'].indexOf(mirror) < 0 ||
+				(mirror === 'custom' && !validPrefix(custom)) || (api && !validPrefix(api))) {
+				ui.addNotification(null, E('p', {}, '加速地址应为 HTTPS 前缀，不能包含账号、查询参数或片段。'));
+				return;
+			}
 			self.saveButton.disabled = true;
 			uci.set('online-upgrade', 'main', 'repository', value);
+			uci.set('online-upgrade', 'main', 'download_mirror', mirror);
+			uci.set('online-upgrade', 'main', 'custom_mirror', custom);
+			uci.set('online-upgrade', 'main', 'api_mirror', api);
 			return uci.save().then(function() { return commitConfig('online-upgrade'); }).then(function(result) {
 				if (result && result.error) throw new Error('保存仓库配置失败。');
 				return self.start('check');
@@ -186,7 +223,7 @@ return view.extend({
 				ui.addNotification(null, E('p', {}, error.message));
 			});
 		}}, '保存并检查');
-		this.checkButton = E('button', { 'class': 'btn cbi-button-action', disabled: !writable,
+		this.checkButton = E('button', { 'class': 'btn cbi-button-action', disabled: writable ? null : true,
 			click: function() { return self.start('check'); } }, '刷新固件列表');
 		this.downloadButton = E('button', { 'class': 'btn cbi-button-action', disabled: true,
 			click: function() { return self.start('download'); } }, '下载并校验');
@@ -201,9 +238,13 @@ return view.extend({
 				E('table', { 'class': 'table' }, [
 					row('当前构建', build.version), row('提交版本', (build.commit || '未知').slice(0, 12)),
 					row('固件配置', (build.include_docker ? '含 Docker' : '不含 Docker') + ' / ' + build.rootfs_partsize + ' MB'),
-					row('GitHub 仓库', [repository, ' ', this.saveButton]), row('选择固件', this.selector), row('目标配置', this.targetConfig),
+					row('GitHub 仓库', repository), row('下载加速', this.mirror), row('自定义镜像前缀', this.customMirror),
+					row('API 加速前缀', this.apiMirror), row('应用设置', this.saveButton),
+					row('选择固件', this.selector), row('目标配置', this.targetConfig),
 					row('目标构建', this.latest), row('镜像文件', this.filename), row('SHA256', this.checksum), row('更新说明', this.release)
 				]),
+				E('p', { 'class': 'cbi-value-description' }, '保存并检查后生效。下载加速用于更新清单和固件；版本列表默认直连 GitHub API。API 加速须使用支持该接口的服务，地址格式为 HTTPS 前缀，插件会在后面拼接完整原始 URL。'),
+				E('p', { 'class': 'cbi-value-description' }, '使用镜像时，所选服务将转发下载内容。SHA256 校验仍会执行，但镜像同时提供清单和固件，不构成独立签名验证。'),
 				this.message,
 				E('div', { 'class': 'cbi-page-actions' }, [this.checkButton, ' ', this.downloadButton, ' ', this.upgradeButton])
 			]),

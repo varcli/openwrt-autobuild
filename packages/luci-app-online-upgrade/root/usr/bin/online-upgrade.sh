@@ -8,18 +8,43 @@ STATE=/var/run/online-upgrade
 LOCK="$STATE/lock"
 IMAGE="$STATE/firmware.img.gz"
 MANIFEST="$STATE/manifest.json"
-. /usr/share/libubox/jshn.sh
 
 field() { jsonfilter -i "$1" -e "@.$2"; }
 die() { echo "$*" >&2; exit 1; }
 integer() { case "$1" in ''|*[!0-9]*) return 1;; esac; [ "${#1}" -le 12 ] && [ "$1" -gt 0 ]; }
 safe_name() { printf '%s\n' "$1" | grep -Eq '^[A-Za-z0-9][A-Za-z0-9._+-]*$'; }
+https_prefix() {
+    case "$1" in *[[:space:]]*) return 1;; esac
+    [ "${#1}" -le 512 ] && printf '%s\n' "$1" | grep -Eq '^https://[A-Za-z0-9]([A-Za-z0-9.-]*[A-Za-z0-9])?(:[0-9]{1,5})?(/[A-Za-z0-9._~%/-]*)?$'
+}
+
+load_transport() {
+    local mirror
+    mirror=$(uci -q get online-upgrade.main.download_mirror 2>/dev/null || true)
+    case "$mirror" in
+        ''|direct) DOWNLOAD_PREFIX='' ;;
+        ghfast) DOWNLOAD_PREFIX='https://ghfast.top' ;;
+        ghproxy) DOWNLOAD_PREFIX='https://gh-proxy.com' ;;
+        custom)
+            DOWNLOAD_PREFIX=$(uci -q get online-upgrade.main.custom_mirror 2>/dev/null || true)
+            https_prefix "$DOWNLOAD_PREFIX" || die '自定义下载加速地址必须是有效的 HTTPS 前缀，不能包含账号、查询参数或片段。'
+            ;;
+        *) die '未知的下载镜像，请重新保存加速设置。' ;;
+    esac
+    API_PREFIX=$(uci -q get online-upgrade.main.api_mirror 2>/dev/null || true)
+    if [ -n "$API_PREFIX" ]; then
+        https_prefix "$API_PREFIX" || die 'API 加速地址必须是有效的 HTTPS 前缀。'
+    fi
+}
 
 mkdir -p "$STATE"
 chmod 0700 "$STATE"
 
-state() {
-    json_init
+state() (
+    # jshn 会读取未初始化的变量；仅在状态生成子 shell 中关闭 nounset。
+    set +u
+    . /usr/share/libubox/jshn.sh
+    json_init || exit 1
     json_add_string phase "$1"
     json_add_string message "$2"
     if [ -s "$MANIFEST" ]; then
@@ -36,9 +61,9 @@ state() {
     local allow_backup=0
     if [ -s "$STATE/validation.json" ] && [ "$(field "$STATE/validation.json" allow_backup)" = true ]; then allow_backup=1; fi
     json_add_boolean allow_backup "$allow_backup"
-    json_dump > "$STATE/status.new"
+    json_dump > "$STATE/status.new" || exit 1
     mv "$STATE/status.new" "$STATE/status.json"
-}
+)
 
 load_identity() {
     [ -s "$BUILD" ] || die '缺少本固件构建信息，请先手动刷入带在线更新功能的版本。'
@@ -51,12 +76,20 @@ load_identity() {
     [ "$(uname -m)" = x86_64 ] || die '设备架构不匹配。'
     [ -d /sys/firmware/efi ] || die '当前版本仅支持以 EFI 启动的设备。'
     awk '$2 == "/rom" && $3 == "squashfs" { found=1 } END { exit !found }' /proc/mounts || die '当前版本仅支持 squashfs 固件。'
+    load_transport
 }
 
 download() {
+    local address="$1" prefix
+    case "$address" in
+        https://api.github.com/*) prefix="$API_PREFIX" ;;
+        https://github.com/*) prefix="$DOWNLOAD_PREFIX" ;;
+        *) die '不支持的 GitHub 下载地址。' ;;
+    esac
+    if [ -n "$prefix" ]; then address="${prefix%/}/$address"; fi
     curl --fail --location --silent --show-error --proto '=https' --proto-redir '=https' \
         --connect-timeout 15 --max-time "$3" --retry 2 --retry-delay 2 \
-        --max-filesize "${4:-65536}" --output "$2" "$1"
+        --max-filesize "${4:-65536}" --output "$2" "$address"
     [ -s "$2" ] || die '下载结果为空。'
 }
 
@@ -184,29 +217,71 @@ upgrade_image() {
     die 'sysupgrade 返回了，请查看日志确认失败原因。'
 }
 
+lock_alive() {
+    local pid
+    if [ -s "$LOCK/pid" ]; then
+        read -r pid < "$LOCK/pid" || return 1
+        case "$pid" in ''|*[!0-9]*) return 1;; esac
+        kill -0 "$pid" 2>/dev/null || return 1
+        # 避免 PID 被无关进程复用后一直误报忙碌。
+        tr '\000' '\n' < "/proc/$pid/cmdline" 2>/dev/null | grep -Fxq -- "$SELF"
+    elif [ -d "$LOCK" ]; then
+        # mkdir 与写入 PID 之间给并发启动留出时间；旧版空锁会自动回收。
+        [ "$(( $(date +%s) - $(stat -c %Y "$LOCK") ))" -lt 5 ]
+    else
+        return 1
+    fi
+}
+
 start_worker() {
-    mkdir "$LOCK" 2>/dev/null || die '已有检查或升级任务正在运行。'
+    if ! mkdir "$LOCK" 2>/dev/null; then
+        lock_alive && die '已有检查或升级任务正在运行。'
+        # 让并发恢复请求只能有一个移动旧锁，避免误移走新任务的锁。
+        mkdir "$LOCK/reclaim" 2>/dev/null || die '任务锁正在恢复，请稍后重试；若持续出现，请重启设备。'
+        trap 'rmdir "$LOCK/reclaim" 2>/dev/null || true' EXIT
+        if [ -s "$LOCK/pid" ] && lock_alive; then die '已有检查或升级任务正在运行。'; fi
+        local stale="$STATE/stale-lock-$$"
+        mv "$LOCK" "$stale" 2>/dev/null || die '任务状态正在恢复，请重试。'
+        rm -f "$stale/pid"
+        rmdir "$stale/reclaim"
+        rmdir "$stale"
+        trap - EXIT
+        mkdir "$LOCK" 2>/dev/null || die '已有检查或升级任务正在运行。'
+    fi
+    trap 'rm -f "$LOCK/pid"; rmdir "$LOCK" 2>/dev/null || true' EXIT
+    printf '%s\n' "$$" > "$LOCK/pid"
     : > "$STATE/log"
     state "$1" "$2"
     worker="$3"
     shift 3
     setsid /bin/sh "$SELF" "$worker" "$@" </dev/null >> "$STATE/log" 2>&1 &
+    printf '%s\n' "$!" > "$LOCK/pid"
+    trap - EXIT
     echo '{"started":true}'
 }
 
 worker_exit() {
     result=$?
     trap - EXIT
-    if [ "$result" -ne 0 ]; then state error '操作失败，请查看下方日志。'; fi
+    if [ "$result" -ne 0 ]; then state error '操作失败，请查看下方日志。' || true; fi
     rm -f "$STATE/firmware.part" "$STATE/manifest.part" "$STATE/releases.part"
-    rmdir "$LOCK"
+    rm -f "$LOCK/pid"
+    rmdir "$LOCK" || true
     exit "$result"
 }
 
 case "${1:-status}" in
     status)
         if [ -s "$STATE/status.json" ]; then
-            cat "$STATE/status.json"
+            phase=$(field "$STATE/status.json" phase 2>/dev/null || true)
+            case "$phase" in
+                checking|selecting|downloading|verifying|flashing)
+                    if lock_alive; then cat "$STATE/status.json";
+                    else echo '{"phase":"error","message":"上次任务已中断，可重新刷新固件列表。"}'; fi
+                    ;;
+                '') echo '{"phase":"error","message":"任务状态损坏，可重新刷新固件列表。"}' ;;
+                *) cat "$STATE/status.json" ;;
+            esac
         else
             echo '{"phase":"idle","message":"点击检查更新。"}'
         fi
@@ -226,6 +301,13 @@ case "${1:-status}" in
         [ -d "$LOCK" ] || die '任务锁不存在。'
         trap worker_exit EXIT
         trap 'exit 1' HUP INT TERM
+        # 等待启动者交接 PID，避免快速失败后启动者重新留下 PID 文件。
+        tries=0
+        while [ "$(cat "$LOCK/pid" 2>/dev/null || true)" != "$$" ]; do
+            tries=$((tries + 1))
+            [ "$tries" -lt 5 ] || die '后台任务启动交接失败。'
+            sleep 1
+        done
         load_identity
         case "$1" in
             _check) check_update ;;

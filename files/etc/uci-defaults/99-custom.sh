@@ -38,6 +38,7 @@ if [ "$network_count" -eq 1 ]; then
   # 旁路由模式：客户端手动指定网关，地址分配由主路由负责
   # 保留 dnsmasq 的 DNS 服务，仅关闭 LAN 地址分配及 IPv6 通告/中继
   uci set dhcp.lan.ignore='1'
+  uci set dhcp.@dnsmasq[0].authoritative='0'
   uci set dhcp.lan.dhcpv6='disabled'
   uci set dhcp.lan.ra='disabled'
   uci set dhcp.lan.ndp='disabled'

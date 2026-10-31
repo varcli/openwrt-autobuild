@@ -10,7 +10,7 @@
 ## 更新协议
 
 - 构建信息保存在 `/usr/share/online-upgrade/build.json`，不从 UCI 中读取当前构建号。
-- UCI 仅设置 GitHub 仓库，默认使用构建所在的仓库，支持 Fork。
+- UCI 设置 GitHub 仓库与下载加速，默认使用构建所在仓库并直连，支持 Fork。
 - GitHub API 返回最近 100 条 Release，页面过滤 x86 squashfs EFI 镜像并按发布时间排序。
 - 默认选择最新可用构建，可以手动选择历史版本、重装或切换 Docker 配置，不维护额外更新通道。
 - 每个 Release 保存自己的 `x86-64-update.json`，镜像 URL 固定指向该 Release。
@@ -18,6 +18,19 @@
 - 没有清单的旧 Release 仅列出，不能在线刷写。所选标签必须来自本次查询，清单也必须对应该标签。
 - Docker 标识只描述目标固件，不阻止切换；仍拒绝架构、启动方式或文件系统不匹配的镜像。
 - 下载绑定标签，确认刷写绑定标签和哈希；回退旧构建时提示兼容性并默认不保留配置。
+
+## GitHub 加速
+
+下载镜像可选直连、`ghfast.top`、`gh-proxy.com` 和自定义 HTTPS 前缀，作用于 Release 清单和镜像。
+GitHub API 列表查询独立配置，`api_mirror` 留空时直连，填写时须使用支持 API 的前缀服务。
+自定义地址按 `前缀/完整原始URL` 拼接，支持前缀路径，末尾斜杠可选。
+例如 `https://mirror.example.com/proxy/` 会得到 `https://mirror.example.com/proxy/https://github.com/...`。
+地址不接受 HTTP、账号密码、查询参数或 URL 片段；无需且不发送 GitHub Token。
+
+配置项为 `download_mirror=direct|ghfast|ghproxy|custom`、`custom_mirror` 和 `api_mirror`。
+修改后保存并重新检查；每个后台任务启动时读取设置，运行中页面禁止修改。
+不改写更新清单中的 GitHub 原始 URL，也不取消标签、仓库、哈希或系统校验。
+下载失败不会静默切换服务。镜像可能同时转发清单和固件，SHA256 不能证明镜像独立可信。
 
 ## 执行边界
 
