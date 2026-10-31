@@ -24,7 +24,7 @@ load_transport() {
     case "$mirror" in
         ''|direct) DOWNLOAD_PREFIX='' ;;
         ghfast) DOWNLOAD_PREFIX='https://ghfast.top' ;;
-        ghproxy) DOWNLOAD_PREFIX='https://gh-proxy.com' ;;
+        ghproxy) DOWNLOAD_PREFIX='https://gh-proxy.org' ;;
         custom)
             DOWNLOAD_PREFIX=$(uci -q get online-upgrade.main.custom_mirror 2>/dev/null || true)
             https_prefix "$DOWNLOAD_PREFIX" || die '自定义下载加速地址必须是有效的 HTTPS 前缀，不能包含账号、查询参数或片段。'
@@ -80,16 +80,24 @@ load_identity() {
 }
 
 download() {
-    local address="$1" prefix
+    local address="$1" prefix result=0
     case "$address" in
         https://api.github.com/*) prefix="$API_PREFIX" ;;
         https://github.com/*) prefix="$DOWNLOAD_PREFIX" ;;
         *) die '不支持的 GitHub 下载地址。' ;;
     esac
     if [ -n "$prefix" ]; then address="${prefix%/}/$address"; fi
+    printf '请求地址：%s\n' "$address"
     curl --fail --location --silent --show-error --proto '=https' --proto-redir '=https' \
         --connect-timeout 15 --max-time "$3" --retry 2 --retry-delay 2 \
-        --max-filesize "${4:-65536}" --output "$2" "$address"
+        --max-filesize "${4:-65536}" --output "$2" "$address" || result=$?
+    case "$result" in
+        0) ;;
+        6) die '路由器 DNS 解析失败，请检查本机及上游 DNS；更换下载镜像不能修复本机 DNS。' ;;
+        22) die '服务器拒绝请求，请查看上方 HTTP 错误码；检查版本时可配置独立的 API 加速。' ;;
+        28) die '连接或下载超时，请检查路由器网络，或更换对应的 API / 下载加速地址。' ;;
+        *) die "下载失败（curl 错误码 $result），请查看上方日志。" ;;
+    esac
     [ -s "$2" ] || die '下载结果为空。'
 }
 
@@ -254,8 +262,11 @@ start_worker() {
     state "$1" "$2"
     worker="$3"
     shift 3
-    setsid /bin/sh "$SELF" "$worker" "$@" </dev/null >> "$STATE/log" 2>&1 &
-    printf '%s\n' "$!" > "$LOCK/pid"
+    # rpcd 的 exec 通道不能直接留下 shell 后台子进程，否则 HTTP 调用可能一直等到超时。
+    # 使用系统守护启动工具脱离请求；PID 文件由守护进程在 exec 前写入。
+    rm -f "$LOCK/pid"
+    start-stop-daemon -S -b -m -p "$LOCK/pid" -x /bin/sh -- -c \
+        'exec /bin/sh "$@" </dev/null >>"$0" 2>&1' "$STATE/log" "$SELF" "$worker" "$@"
     trap - EXIT
     echo '{"started":true}'
 }
@@ -263,7 +274,11 @@ start_worker() {
 worker_exit() {
     result=$?
     trap - EXIT
-    if [ "$result" -ne 0 ]; then state error '操作失败，请查看下方日志。' || true; fi
+    if [ "$result" -ne 0 ]; then
+        message=$(tail -n 1 "$STATE/log" 2>/dev/null || true)
+        if [ -z "$message" ] || [ "${#message}" -gt 512 ]; then message='操作失败，请查看下方日志。'; fi
+        state error "$message" || true
+    fi
     rm -f "$STATE/firmware.part" "$STATE/manifest.part" "$STATE/releases.part"
     rm -f "$LOCK/pid"
     rmdir "$LOCK" || true

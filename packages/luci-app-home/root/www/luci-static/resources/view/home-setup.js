@@ -35,7 +35,7 @@ return view.extend({
 	showStep: function(step) {
 		this.step = step;
 		this.panels.forEach(function(panel, index) { panel.hidden = index !== step; });
-		this.stepLabels.forEach(function(label, index) { label.className = index === step ? 'is-current' : ''; });
+		this.stepLabels.forEach(function(label, index) { label.className = 'label' + (index === step ? ' notice' : ''); });
 		this.back.hidden = step === 0;
 		this.next.hidden = step === 2;
 		this.apply.hidden = step !== 2;
@@ -131,13 +131,13 @@ return view.extend({
 		this.summary = E('dl', { 'class': 'ows-summary' });
 		this.newAddress = E('a', { target: '_blank', rel: 'noopener noreferrer' });
 		this.panels = [
-			E('section', {}, [
+			E('section', { 'class': 'cbi-section' }, [
 				row('运行模式', this.mode),
 				E('p', { 'class': 'ows-help' }, '旁路由：主路由分配地址，客户端手动将网关指向本机。主路由：本机提供 DHCP、NAT 和上网连接。'),
 				E('p', { 'class': 'ows-help' }, '向导用于基础以太网配置。单网口默认推荐旁路由；VLAN、无线中继和复杂网桥请使用网络接口页面。')
 			]),
-			E('section', {}, [row('LAN 网口', portChoices), row('管理地址', this.fields.lanIP), row('子网掩码', this.fields.lanMask), this.sideFields, this.wanFields]),
-			E('section', {}, [
+			E('section', { 'class': 'cbi-section' }, [row('LAN 网口', portChoices), row('管理地址', this.fields.lanIP), row('子网掩码', this.fields.lanMask), this.sideFields, this.wanFields]),
+			E('section', { 'class': 'cbi-section' }, [
 				this.summary,
 				E('p', { 'class': 'ows-help' }, '应用会更新 LAN/WAN、DHCP 与对应防火墙区域。主路由的 WAN 入站将设为拒绝，并启用 LAN 到 WAN 的转发和 NAT。'),
 				E('p', {}, ['应用后管理地址：', this.newAddress]),
@@ -151,7 +151,6 @@ return view.extend({
 		this.stepLabels = ['1. 选择模式', '2. 网络设置', '3. 确认配置'].map(function(label) { return E('li', {}, label); });
 		var page = E('div', { 'class': 'owh-setup' }, [
 			E('link', { rel: 'stylesheet', href: L.resource('home/home.css') }),
-			E('h2', {}, '网络配置向导'),
 			E('ol', { 'class': 'ows-steps' }, this.stepLabels), this.error,
 			E('p', { 'class': 'alert-message warning', hidden: this.ports.length ? true : null }, '未发现可用以太网口，请到网络接口页面检查设备。'),
 			this.panels[0], this.panels[1], this.panels[2],
@@ -167,6 +166,6 @@ return view.extend({
 		]);
 		this.showStep(0);
 		this.refreshFields();
-		return page;
+		return E('div', {}, [E('h2', {}, '网络配置向导'), page]);
 	}
 });

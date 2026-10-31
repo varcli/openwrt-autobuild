@@ -24,8 +24,12 @@
 
 ## GitHub 加速
 
-下载镜像可选直连、`ghfast.top`、`gh-proxy.com` 和自定义 HTTPS 前缀，作用于 Release 清单和镜像。
+下载镜像可选直连、`ghfast.top`、`gh-proxy.org` 和自定义 HTTPS 前缀，作用于 Release 清单和镜像。
 GitHub API 列表查询独立配置，`api_mirror` 留空时直连，填写时须使用支持 API 的前缀服务。
+`https://gh-proxy.org/` 同时支持 API 和 Release 文件，见[服务文档](https://gh-proxy.com/docs/github-accelerator)。
+请求在路由器自身执行；DNS 失败须先修复设备的上游 DNS，单独更换镜像无效。
+日志记录实际请求地址及 curl 错误，页面直接显示失败原因，区分 DNS、HTTP 拒绝与超时。
+后台任务通过系统 `start-stop-daemon` 启动，脱离 rpcd 请求后立即返回；PID 文件用于并发检查和过期锁恢复。
 自定义地址按 `前缀/完整原始URL` 拼接，支持前缀路径，末尾斜杠可选。
 例如 `https://mirror.example.com/proxy/` 会得到 `https://mirror.example.com/proxy/https://github.com/...`。
 地址不接受 HTTP、账号密码、查询参数或 URL 片段；无需且不发送 GitHub Token。

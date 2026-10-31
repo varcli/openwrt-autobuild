@@ -12,7 +12,7 @@ find "$package_root" -type d -exec chmod 0755 {} +
 
 staging_dir/host/bin/apk mkpkg \
     --info 'name:luci-app-online-upgrade' \
-    --info 'version:1.2.0-r1' \
+    --info 'version:1.2.1-r1' \
     --info 'arch:noarch' \
     --info 'license:GPL-2.0-or-later' \
     --info 'description:GitHub firmware updates for this x86 ImageBuilder firmware' \
@@ -20,4 +20,4 @@ staging_dir/host/bin/apk mkpkg \
     --info 'url:https://github.com/varcli/openwrt-autobuild' \
     --info 'depends:luci-base rpcd-mod-file curl jsonfilter' \
     --files "$package_root" \
-    --output packages/luci-app-online-upgrade-1.2.0-r1.apk
+    --output packages/luci-app-online-upgrade-1.2.1-r1.apk

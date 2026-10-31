@@ -5,7 +5,6 @@
 'require uci';
 'require request';
 'require poll';
-'require home.connectivity as connectivity';
 
 var getBoard = rpc.declare({ object: 'system', method: 'board' });
 var getInfo = rpc.declare({ object: 'system', method: 'info' });
@@ -139,7 +138,7 @@ return view.extend({
 		this.routeStatus.textContent = state.gatewayActive ? '默认路由已就绪' : '未检测到 IPv4 默认路由';
 		this.routeStatus.className = 'owh-route-status' + (state.gatewayActive ? ' is-ready' : '');
 		this.connection.textContent = data.interfaces == null ? '状态未知' : (state.lan.up ? 'LAN 已连接' : 'LAN 未连接');
-		this.connection.className = 'owh-connection' + (state.lan.up ? ' is-up' : '');
+		this.connection.className = 'owh-connection label' + (state.lan.up ? ' success' : '');
 		this.dhcp.textContent = state.dhcp;
 		this.dns.textContent = state.dns.length ? state.dns.join(' · ') : '未获取';
 		this.elapsed.textContent = uptime(info.uptime);
@@ -219,10 +218,10 @@ return view.extend({
 		this.lastCpu = null;
 		this.lastTraffic = null;
 		this.apps = [];
-		this.mode = textNode('span', 'owh-mode', '读取网络配置');
-		this.connection = textNode('span', 'owh-connection', '正在获取状态');
+		this.mode = textNode('span', 'owh-mode label', '读取网络配置');
+		this.connection = textNode('span', 'owh-connection label', '正在获取状态');
 		this.updated = textNode('span', 'owh-updated', '正在获取状态');
-		this.error = textNode('p', 'owh-error', '');
+		this.error = textNode('p', 'owh-error alert-message warning', '');
 		this.error.hidden = true;
 		this.address = textNode('strong', 'owh-mono', '—');
 		this.gateway = textNode('strong', 'owh-mono', '—');
@@ -280,12 +279,12 @@ return view.extend({
 		var page = E('div', { 'class': 'owh-home' }, [
 			style,
 			E('div', { 'class': 'owh-header' }, [
-				E('div', {}, [E('h2', {}, [board.hostname || '设备主页', this.mode]), textNode('p', 'owh-subtitle', board.model || board.system || '设备信息暂不可用')]),
+				E('div', {}, [E('div', { 'class': 'owh-identity' }, [textNode('strong', 'owh-hostname', board.hostname || '设备'), this.mode]), textNode('p', 'owh-subtitle', board.model || board.system || '设备信息暂不可用')]),
 				E('div', { 'class': 'owh-header-status' }, [this.connection, this.updated])
 			]),
 			this.error,
 			E('div', { 'class': 'owh-top-grid' }, [
-				E('section', { 'class': 'owh-panel owh-network' }, [
+				E('section', { 'class': 'cbi-section owh-panel owh-network' }, [
 					heading('网络状态'),
 					E('div', { 'class': 'owh-topology' }, [
 						E('div', { 'class': 'owh-endpoint' }, [textNode('span', 'owh-node-label', '本地网络'), this.address]),
@@ -300,12 +299,18 @@ return view.extend({
 					this.chart,
 					textNode('p', 'owh-caption', 'LAN 接口统计，含局域网通信。')
 				]),
-				E('section', { 'class': 'owh-panel owh-resources' }, [heading('设备状态'), this.cpu.root, this.memory.root, this.disk.root, E('div', { 'class': 'owh-uptime' }, [textNode('span', '', '持续运行'), this.elapsed])])
+				E('section', { 'class': 'cbi-section owh-panel owh-resources' }, [heading('设备状态'), this.cpu.root, this.memory.root, this.disk.root, E('div', { 'class': 'owh-uptime' }, [textNode('span', '', '持续运行'), this.elapsed])])
 			]),
-			connectivity.render(),
+			E('section', { 'class': 'cbi-section owh-panel owh-tools' }, [
+				E('div', {}, [heading('IP 与分流检测'), textNode('p', 'owh-caption', '使用在线工具查看当前浏览器的出口 IP、连通性与网站分流。')]),
+				E('nav', { 'class': 'owh-tool-links', 'aria-label': '外部网络检测工具' }, [
+					E('a', { 'class': 'btn owh-tool-link', href: 'https://ip.skk.moe/', target: '_blank', rel: 'noopener noreferrer' }, 'IP 与连通性 ↗'),
+					E('a', { 'class': 'btn cbi-button-action owh-tool-link', href: 'https://ip.skk.moe/split-tunnel', target: '_blank', rel: 'noopener noreferrer' }, '网站分流测试 ↗')
+				])
+			]),
 			E('div', { 'class': 'owh-bottom-grid' }, [
-				E('section', { 'class': 'owh-panel' }, [heading('常用应用'), apps]),
-				E('section', { 'class': 'owh-panel' }, [heading('网络接口'), this.interfaceList])
+				E('section', { 'class': 'cbi-section owh-panel' }, [heading('常用应用'), apps]),
+				E('section', { 'class': 'cbi-section owh-panel' }, [heading('网络接口'), this.interfaceList])
 			]),
 			E('section', { 'class': 'owh-system' }, [
 				E('dl', {}, [keyValue('固件', firmware + ' ' + (release.version || '')), keyValue('内核', board.kernel, true), keyValue('平台', release.target || board.system, true), keyValue('构建', build.version || '—', true)]),
@@ -314,6 +319,6 @@ return view.extend({
 		]);
 		this.updateLive(data[5]);
 		poll.add(L.bind(this.refresh, this), 5);
-		return page;
+		return E('div', {}, [E('h2', {}, '主页'), page]);
 	}
 });
