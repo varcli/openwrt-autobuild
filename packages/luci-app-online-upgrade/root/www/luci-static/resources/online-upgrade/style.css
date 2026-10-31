@@ -1,15 +1,16 @@
 .ou-page {
 	--ou-ink: #2d2a26; --ou-muted: #85847e; --ou-line: #e5e5e1;
 	--ou-surface: #fff; --ou-soft: #f6f6f3; --ou-green: #1b9d80;
-	max-width: 1400px; margin: 0 auto; padding: 12px 4px;
+	margin: 0; padding: 12px 4px;
 	box-sizing: border-box; width: 100%; min-width: 0; align-self: stretch;
 	container: ou-page / inline-size;
 	color: var(--ou-ink); font: 14px/1.65 -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei", sans-serif;
 }
 .ou-page *, .ou-page *::before, .ou-page *::after { box-sizing: border-box; }
 .ou-page h2, .ou-page h3, .ou-page p { margin: 0; padding: 0; background: none; border: 0; border-radius: 0; box-shadow: none; color: inherit; }
-.ou-page .ou-header { display: flex; align-items: center; justify-content: space-between; gap: 24px; margin-bottom: 28px; }
-.ou-page .ou-header h2 { font-size: 32px; font-weight: 700; line-height: 1.3 !important; letter-spacing: -.035em; }
+.ou-page .ou-header { display: flex; position: static; align-items: center; justify-content: space-between; gap: 24px; margin: 0 0 28px; padding: 0; min-width: 0; color: var(--ou-ink); background: none; border: 0; box-shadow: none; }
+.ou-page .ou-header > div { flex: 1; min-width: 0; }
+.ou-page .ou-header h2 { width: auto; font-size: 32px; font-weight: 700; line-height: 1.3 !important; letter-spacing: -.035em; overflow-wrap: anywhere; }
 .ou-page .ou-header p { margin-top: 10px; color: var(--ou-muted); font-size: 13px; }
 .ou-page .ou-header > .btn { flex-shrink: 0; }
 .ou-page .ou-current { display: flex; flex-wrap: wrap; align-items: center; gap: 20px 60px; padding: 22px 26px; margin-bottom: 24px; background: var(--ou-soft); border: 1px solid var(--ou-line); border-radius: 14px; }
@@ -64,7 +65,7 @@
 @container ou-page (max-width: 520px) {
 	.ou-page .ou-row { grid-template-columns: minmax(0, 1fr); gap: 6px; }
 	.ou-page .ou-settings-action { margin-left: 0; }
-	.ou-page .ou-header { flex-wrap: wrap; }
+	.ou-page .ou-header { align-items: flex-start; flex-direction: column; gap: 16px; }
 }
 @media (max-width: 580px) {
 	.ou-page .ou-header { align-items: flex-start; flex-direction: column; gap: 16px; }

@@ -18,8 +18,7 @@
 	container: owh-page / inline-size;
 }
 .owh-home {
-	max-width: 1480px;
-	margin: 0 auto;
+	margin: 0;
 	padding: 12px 4px 0;
 }
 .owh-home *, .owh-home *::before, .owh-home *::after { box-sizing: border-box; }
@@ -42,7 +41,7 @@
 .owh-home .owh-bottom-grid { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: 20px; margin-top: 20px; }
 .owh-home .owh-panel { min-width: 0; padding: 24px 26px; background: var(--owh-surface); border: 1px solid var(--owh-line); border-radius: 14px; }
 .owh-home .owh-section-title { display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: 8px; margin-bottom: 22px; }
-.owh-home .owh-section-title h3 { color: var(--owh-ink); font-size: 15px; font-weight: 650; line-height: 1.4 !important; border: 0; background: none; box-shadow: none; }
+.owh-home .owh-section-title h3 { width: auto; color: var(--owh-ink); font-size: 15px; font-weight: 650; line-height: 1.4 !important; border: 0; background: none; box-shadow: none; }
 .owh-home .owh-topology { display: flex; align-items: center; justify-content: center; min-height: 95px; padding: 8px 0 20px; }
 .owh-home .owh-endpoint { min-width: 122px; display: flex; flex-direction: column; align-items: center; gap: 6px; }
 .owh-home .owh-node-label { color: var(--owh-muted); font-size: 11px; }
@@ -105,6 +104,28 @@
 .owh-home .owh-shortcuts a:hover { color: var(--owh-blue); }
 .owh-home .owh-empty { color: var(--owh-muted); font-size: 12px; padding: 12px 0; }
 .owh-home .owh-error { background: #fff6e9; color: #986020; border: 1px solid #f2dfbf; border-radius: 6px; padding: 10px 14px; margin-bottom: 16px; font-size: 12px; }
+.owh-home .owh-checks { margin-top: 20px; }
+.owh-home .owh-checks .owh-section-title { align-items: center; margin-bottom: 16px; }
+.owh-home .owh-check-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.owh-home .owh-check-button { border: 1px solid var(--owh-line); border-radius: 999px; padding: 6px 14px; background: var(--owh-surface); color: var(--owh-ink); font: inherit; font-size: 12px; cursor: pointer; box-shadow: none; }
+.owh-home .owh-check-button.is-primary { background: var(--owh-ink); border-color: var(--owh-ink); color: var(--owh-surface); }
+.owh-home .owh-check-button:disabled { cursor: wait; opacity: .5; }
+.owh-home .owh-check-button:focus-visible { outline: 2px solid var(--owh-teal); outline-offset: 3px; }
+.owh-home .owh-check-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 170px), 1fr)); gap: 12px; }
+.owh-home .owh-check-card { min-width: 0; border: 1px solid var(--owh-line); border-radius: 9px; padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+.owh-home .owh-check-title { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 6px 12px; }
+.owh-home .owh-check-title > strong { font-size: 13px; font-weight: 600; }
+.owh-home .owh-check-state { color: var(--owh-muted); font-size: 10px; }
+.owh-home .owh-check-ip { display: block; font-size: 16px; font-weight: 500; overflow-wrap: anywhere; }
+.owh-home .owh-check-location { color: var(--owh-muted); font-size: 10px; overflow-wrap: anywhere; }
+.owh-home .is-reachable .owh-check-state { color: var(--owh-teal); }
+.owh-home .is-failed .owh-check-state { color: #b76b22; }
+.owh-home .owh-check-footer { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 8px 20px; margin-top: 12px; }
+.owh-home .owh-check-footer .owh-caption { flex: 1 1 420px; margin: 0; }
+.owh-home .owh-check-updated { color: var(--owh-muted); font-size: 10px; }
+.owh-home .owh-check-help { margin-top: 8px; color: var(--owh-muted); font-size: 10px; }
+.owh-home .owh-check-help summary { cursor: pointer; }
+.owh-home .owh-check-help p { margin-top: 8px; line-height: 1.8; }
 
 /* Argon switches its root attribute; other themes can use system dark mode. */
 :root[darkmode="true"] .owh-home, :root[data-darkmode="true"] .owh-home, .dark .owh-home {
@@ -185,7 +206,7 @@
 	.owh-home .owh-wire { flex: none; width: 24px; height: 1px; margin: 6px 0; transform: rotate(90deg); }
 }
 
-.owh-setup { max-width: 1100px; margin: 0 auto; padding: 12px 4px; }
+.owh-setup { margin: 0; padding: 12px 4px; }
 .owh-setup > h2 { margin: 0; padding: 0; border: 0; border-radius: 0; background: none; box-shadow: none; color: var(--owh-ink); font-size: 30px; font-weight: 700; line-height: 1.25 !important; letter-spacing: -.03em; }
 .owh-setup > section { padding: 28px; background: var(--owh-surface); border: 1px solid var(--owh-line); border-radius: 14px; }
 .owh-setup [hidden] { display: none !important; }

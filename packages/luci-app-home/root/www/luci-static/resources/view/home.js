@@ -5,6 +5,7 @@
 'require uci';
 'require request';
 'require poll';
+'require home.connectivity as connectivity';
 
 var getBoard = rpc.declare({ object: 'system', method: 'board' });
 var getInfo = rpc.declare({ object: 'system', method: 'info' });
@@ -301,6 +302,7 @@ return view.extend({
 				]),
 				E('section', { 'class': 'owh-panel owh-resources' }, [heading('设备状态'), this.cpu.root, this.memory.root, this.disk.root, E('div', { 'class': 'owh-uptime' }, [textNode('span', '', '持续运行'), this.elapsed])])
 			]),
+			connectivity.render(),
 			E('div', { 'class': 'owh-bottom-grid' }, [
 				E('section', { 'class': 'owh-panel' }, [heading('常用应用'), apps]),
 				E('section', { 'class': 'owh-panel' }, [heading('网络接口'), this.interfaceList])
