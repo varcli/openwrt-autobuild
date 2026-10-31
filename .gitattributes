@@ -1,0 +1,4 @@
+packages/** text=auto eol=lf
+shell/build-online-upgrade.sh text eol=lf
+shell/firmware-update.py text eol=lf
+tests/** text=auto eol=lf

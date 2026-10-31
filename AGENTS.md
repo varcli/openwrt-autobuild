@@ -19,6 +19,9 @@ x86-64 主要运行在虚拟机中，另一个目标为斐讯 N1。优化应保�
 shell/build-common.sh               公共参数校验、错误处理、下载和克隆函数
 shell/*custom-packages.sh            各目标插件清单
 shell/*prepare-packages.sh           解包第三方 .run 并收集 apk/ipk
+shell/build-online-upgrade.sh        使用 ImageBuilder 的 apk-tools 打包在线更新插件
+shell/firmware-update.py             生成构建标识、更新清单与 SHA256
+packages/luci-app-online-upgrade/    x86 在线更新插件源码
 files/                              两目标共享的固件文件覆盖层
 files/etc/uci-defaults/99-custom.sh   首次启动网络与服务默认值
 files/etc/banner                    共享的静态终端欢迎信息
@@ -119,6 +122,26 @@ extra-packages 根目录、一级子目录的散包。解包和复制失败必�
 发布要求前序步骤成功且目标固件存在、非空。N1 额外检查 `PACKAGED_STATUS=success`
 和文件整理步骤的 ready 输出。上传保持 `fail_on_unmatched_files: true`，防止无附件发布。
 
+## x86 在线更新
+
+仅 x86 集成 `luci-app-online-upgrade`，目前支持 EFI 启动与 squashfs 镜像。
+`packages/` 是仓库源码目录，工作流挂载到容器 `package-sources/`；不能挂载到容器的成品 packages 目录。
+第三方包整理后，使用 ImageBuilder 自带的 `staging_dir/host/bin/apk mkpkg` 生成原生 apk，
+再通过 PACKAGES 安装，不额外引入 SDK。
+
+- 每次构建写入不可变的构建标识、目标、容量和 Docker 配置到 `/usr/share/online-upgrade/build.json`。
+  当前版本信息不能只存入会被保留配置覆盖的 UCI 文件。
+- 每个历史 Release 附带该构建的镜像、更新清单和 SHA256，不维护额外固定通道。
+- 页面从 GitHub API 获取最近 100 条发布中的 x86 固件，按发布时间排序，默认选择最新可用版本。
+  可以选择历史版本、重装当前版本或切换 Docker 配置；Docker 标识只作描述，不作为兼容性限制。
+- 没有更新清单的旧固件标记为不可在线刷写。所选 Release 必须在本次查询的列表中，且清单与标签一致。
+- 下载请求绑定所选标签，最终刷写确认绑定标签与 SHA256，防止多个会话更改选择后刷错版本。
+- 回退旧构建须明确提示配置兼容性，默认不保留配置；仍必须校验架构、启动方式和文件系统。
+- 插件经认证后的 LuCI/rpcd 调用后端，无独立恢复 CGI；不提供强制刷写或定时自动刷写。
+- 下载与刷写分开，必须明确确认；刷写前重新核对哈希、容量和系统镜像校验。
+- 分区布局变化必须提示；保留配置通过系统备份清单处理，不承诺保留整个 overlay 或额外磁盘数据。
+- 更新信任来源是配置的 GitHub 仓库及 HTTPS，SHA256 校验不等于独立固件签名。
+
 ## 版本与包维护
 
 修改某个目标版本时同步更新 workflow 的 `ImageBuilderVersion`、对应 `.config` 的
@@ -143,8 +166,10 @@ extra-packages 根目录、一级子目录的散包。解包和复制失败必�
 
 ## 检查与交付
 
-本仓库没有常驻自动化测试套件，按改动范围完成必要检查：
+在线更新功能的离线测试位于 `tests/`，不会实际下载或刷写设备。按改动范围完成必要检查：
 
+- `python -X utf8 -m unittest discover -s tests -v` 检查清单生成和后端失败处理。
+- `node tests/test_online_upgrade_ui.js` 检查页面权限、下载/确认分离及分区变更提示。
 - `git diff --check` 检查空白错误，并审阅实际 diff。
 - shell 改动运行 `bash -n`；以 `/bin/sh` 执行的脚本另运行 `sh -n`。
 - workflow 改动检查 YAML、内嵌 shell 语法、参数传递和成功/失败条件。

@@ -28,6 +28,12 @@ else
   ls -lah /home/build/immortalwrt/packages/
 fi
 
+# 使用 ImageBuilder 自带 apk-tools，将维护在仓库中的插件打成原生 apk。
+# 必须放在第三方包整理之后，避免 prepare-packages 清理刚生成的 apk。
+if echo "$CUSTOM_PACKAGES" | grep -q 'luci-app-online-upgrade'; then
+    source shell/build-online-upgrade.sh
+fi
+
 
 # 输出调试信息
 echo "$(date '+%Y-%m-%d %H:%M:%S') - 开始构建固件..."

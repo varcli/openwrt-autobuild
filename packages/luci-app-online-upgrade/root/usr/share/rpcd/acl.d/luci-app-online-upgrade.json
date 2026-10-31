@@ -1,0 +1,15 @@
+{
+  "luci-app-online-upgrade": {
+    "description": "Check and explicitly confirm GitHub firmware upgrades",
+    "read": {
+      "ubus": { "file": ["read"], "uci": ["get"] },
+      "file": { "/usr/share/online-upgrade/build.json": ["read"] },
+      "uci": ["online-upgrade"]
+    },
+    "write": {
+      "ubus": { "file": ["exec"], "uci": ["set", "commit", "apply", "confirm", "changes", "revert", "order", "add", "delete"] },
+      "file": { "/usr/bin/online-upgrade.sh": ["exec"] },
+      "uci": ["online-upgrade"]
+    }
+  }
+}

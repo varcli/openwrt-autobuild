@@ -1,0 +1,7 @@
+/etc/config/online-upgrade
+/etc/openclash/config/
+/etc/openclash/custom/
+/etc/openclash/overwrite/
+/etc/clash/config.yaml
+/etc/clash/custom/
+/etc/clashoo/

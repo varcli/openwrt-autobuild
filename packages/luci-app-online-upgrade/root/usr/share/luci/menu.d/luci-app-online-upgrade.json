@@ -1,0 +1,8 @@
+{
+  "admin/system/online-upgrade": {
+    "title": "GitHub 固件更新",
+    "order": 71,
+    "action": { "type": "view", "path": "system/online-upgrade" },
+    "depends": { "acl": ["luci-app-online-upgrade"] }
+  }
+}

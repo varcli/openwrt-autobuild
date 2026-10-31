@@ -16,7 +16,18 @@ on:
         options:
           - "yes"
           - "no"
+permissions:
+  contents: write
+  actions: write
+
+concurrency:
+  group: build-x86-64
+  cancel-in-progress: false
+
 env:
+  BUILD_ID: ${{ github.run_id }}.${{ github.run_attempt }}
+  BUILD_COMMIT: ${{ github.sha }}
+  UPDATE_REPOSITORY: ${{ github.repository }}
   TZ: Asia/Shanghai
   ROOTFS_PARTSIZE: ${{ inputs.rootfs_partsize || '1024' }}
   INCLUDE_DOCKER: ${{ inputs.include_docker || 'no' }}
@@ -35,6 +46,10 @@ jobs:
       - name: 拉取仓库
         uses: actions/checkout@v4
 
+      - name: 准备构建标识
+        run: |
+          echo "RELEASE_TAG=x86-64-$(date +'%Y.%m.%d-%H%M')-$BUILD_ID" >> "$GITHUB_ENV"
+
       - name: 加载自定义配置
         run: |
           chmod +x ${{ github.workspace }}/${{ matrix.target }}/build.sh
@@ -48,10 +63,14 @@ jobs:
             -v "${{ github.workspace }}/files:/home/build/immortalwrt/files" \
             -v "${{ github.workspace }}/${{ matrix.target }}/.config:/home/build/immortalwrt/.config" \
             -v "${{ github.workspace }}/shell:/home/build/immortalwrt/shell" \
+            -v "${{ github.workspace }}/packages:/home/build/immortalwrt/package-sources:ro" \
             -v "${{ github.workspace }}/${{ matrix.target }}/build.sh:/home/build/immortalwrt/build.sh" \
             -e ROOTFS_PARTSIZE \
             -e INCLUDE_DOCKER \
             -e PROFILE=generic \
+            -e BUILD_ID \
+            -e BUILD_COMMIT \
+            -e UPDATE_REPOSITORY \
             immortalwrt/imagebuilder:${{ env.ImageBuilderVersion }} /bin/bash /home/build/immortalwrt/build.sh
 
           echo "COMPILESTATUS=success" >> $GITHUB_ENV
@@ -70,11 +89,14 @@ jobs:
           find "${{ github.workspace }}/dist" -maxdepth 1 -type f -name '*-squashfs-combined-efi.img.gz' -size +0c -print -quit | grep -q .
           ls -l ${{ github.workspace }}/dist
 
+      - name: 生成固件更新清单
+        if: env.COMPILESTATUS == 'success' && success()
+        run: python3 shell/firmware-update.py manifest dist
+
       - name: 生成release信息
         id: release_info
         if: env.COMPILESTATUS == 'success' && success()
         run: |
-          echo "release_name=$(date +"%Y.%m.%d-%H%M")" >> $GITHUB_OUTPUT
           touch release.txt
           echo "${{ matrix.target }} 固件" >> release.txt
           if [ "$INCLUDE_DOCKER" = "yes" ]; then
@@ -92,8 +114,9 @@ jobs:
         if: env.COMPILESTATUS == 'success' && success()
         uses: softprops/action-gh-release@v2
         with:
-          # name: ${{ matrix.target }}⭐️${{ steps.release_info.outputs.release_name }}
-          tag_name: ${{ matrix.target }}⭐️${{ steps.release_info.outputs.release_name }}
+          name: ${{ env.RELEASE_TAG }}
+          tag_name: ${{ env.RELEASE_TAG }}
+          target_commitish: ${{ github.sha }}
           body_path: release.txt
           fail_on_unmatched_files: true
           files: |
