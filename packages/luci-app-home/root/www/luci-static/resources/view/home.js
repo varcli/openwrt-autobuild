@@ -278,7 +278,7 @@ return view.extend({
 		var style = E('link', { rel: 'stylesheet', type: 'text/css', href: L.resource('home/home.css') });
 		var page = E('div', { 'class': 'owh-home' }, [
 			style,
-			E('header', { 'class': 'owh-header' }, [
+			E('div', { 'class': 'owh-header' }, [
 				E('div', {}, [E('h2', {}, [board.hostname || '设备主页', this.mode]), textNode('p', 'owh-subtitle', board.model || board.system || '设备信息暂不可用')]),
 				E('div', { 'class': 'owh-header-status' }, [this.connection, this.updated])
 			]),

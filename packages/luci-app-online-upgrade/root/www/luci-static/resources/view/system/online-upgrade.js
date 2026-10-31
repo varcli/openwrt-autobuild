@@ -179,7 +179,7 @@ return view.extend({
 		this.mirror = E('select', { 'class': 'cbi-input-select', 'aria-label': '下载加速', disabled: writable ? null : true,
 			change: function() { self.customMirror.disabled = !writable || self.mirror.value !== 'custom'; }
 		}, [
-			E('option', { value: 'direct' }, '直连 GitHub（默认）'),
+			E('option', { value: 'direct' }, '禁用加速（直连 GitHub）'),
 			E('option', { value: 'ghfast' }, 'ghfast.top'),
 			E('option', { value: 'ghproxy' }, 'gh-proxy.com'),
 			E('option', { value: 'custom' }, '自定义镜像')
@@ -234,7 +234,7 @@ return view.extend({
 		function row(label, value) { return E('div', { 'class': 'ou-row' }, [E('div', { 'class': 'ou-label' }, label), E('div', { 'class': 'ou-value' }, value)]); }
 		var page = E('div', { 'class': 'ou-page' }, [
 			E('link', { rel: 'stylesheet', href: L.resource('online-upgrade/style.css') }),
-			E('header', { 'class': 'ou-header' }, [
+			E('div', { 'class': 'ou-header' }, [
 				E('div', {}, [E('h2', {}, 'GitHub 固件更新'), E('p', {}, '选择发布版本，下载校验后确认升级。支持 x86-64 / EFI / squashfs。')]), this.checkButton
 			]),
 			E('section', { 'class': 'ou-current' }, [
@@ -244,8 +244,8 @@ return view.extend({
 			]),
 			E('div', { 'class': 'ou-grid' }, [
 				E('section', { 'class': 'ou-panel' }, [
-					E('h3', {}, '更新设置'),
-					row('GitHub 仓库', repository), row('下载加速', this.mirror), row('自定义镜像前缀', this.customMirror), row('API 加速前缀', this.apiMirror),
+					E('h3', {}, '更新源与 GitHub 加速'),
+					row('GitHub 仓库', repository), row('固件下载加速', this.mirror), row('自定义镜像前缀', this.customMirror), row('版本检查加速（API）', this.apiMirror),
 					E('div', { 'class': 'ou-settings-action' }, this.saveButton),
 					E('details', { 'class': 'ou-help' }, [
 						E('summary', {}, '镜像地址说明'),

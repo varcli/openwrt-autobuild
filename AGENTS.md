@@ -143,6 +143,8 @@ x86 使用自带 `apk mkpkg`，N1 使用自带 `scripts/ipkg-build` 打包，再
 - 所有样式限制在 `.owh-home` 下，兼容浅色、深色和窄屏，不引入在线字体或 CDN 依赖。
 - 主页、网络向导和在线更新使用统一的暖灰文字、白色面板、细边框、深色主按钮与绿色状态，
   不增加英文装饰标题。更新插件样式独立维护于 `resources/online-upgrade/style.css`，不依赖主页包。
+- 插件页头使用带自身类名的 div，避免 Argon 的全局 header/伪元素规则；根容器显式撑满父容器，
+  标题须隔离主题的背景、阴影和行高覆盖。布局验证应包含实际主题 CSS，不能只依赖裸页面预览。
 
 首次网络向导位于 `view/home-setup.js`，配置规划与校验位于 `home/setup.js`，样式作用域为 `.owh-setup`。
 `/etc/config/home` 的 completed 标记控制首次入口；暂时跳过仅存当前浏览器会话，系统菜单保留向导入口。
