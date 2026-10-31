@@ -131,6 +131,8 @@ if [[ " $PACKAGES " == *" luci-app-clashoo "* ]]; then
     done
     # mihomo 使用小写文件名；Clashoo 更新界面同时维护大写兼容文件名。
     ln -sfn GeoSite.dat "$CLASHOO_DATA/geosite.dat"
+    # mihomo 的 IP-ASN 规则读取 ASN.mmdb，不能只预置更新脚本使用的长文件名。
+    cp "$CLASHOO_DATA/GeoLite2-ASN.mmdb" "$CLASHOO_DATA/ASN.mmdb"
     echo '✅ Clashoo GeoIP、GeoSite、Country 和 ASN 数据已预置'
 fi
 

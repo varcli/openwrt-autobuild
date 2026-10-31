@@ -245,6 +245,7 @@ return view.extend({
 		this.disk = meter('根分区可用空间', '—');
 		var apps = E('div', { 'class': 'owh-apps' });
 		[
+			{ names: ['passwall'], title: 'Passwall', services: ['passwall'] },
 			{ names: ['openclash'], title: 'OpenClash', services: ['openclash'] },
 			{ names: ['clashoo'], title: 'Clashoo', services: ['clashoo', 'mihomo'] },
 			{ names: ['dockerman', 'docker'], title: 'Docker', services: ['dockerd'] },

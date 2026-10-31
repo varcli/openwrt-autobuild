@@ -140,14 +140,16 @@ x86 固件内置 **GitHub 固件更新**，入口为 **系统 → GitHub 固件�
 | x86-64 | [shell/apk-custom-packages.sh](shell/apk-custom-packages.sh) |
 | N1 | [shell/custom-packages.sh](shell/custom-packages.sh) |
 
-当前 x86-64 集成 OpenClash、Clashoo、Bandix、rtp2httpd、分区扩容等功能；
-N1 集成 OpenClash、Turbo ACC、应用过滤、分区扩容及用于写入 eMMC 的晶晨宝盒。
+当前 x86-64 集成 Passwall、OpenClash、Clashoo、Bandix、rtp2httpd、分区扩容等功能；
+N1 集成 Passwall、OpenClash、Turbo ACC、应用过滤、分区扩容及用于写入 eMMC 的晶晨宝盒。
 两目标均包含 Argon 主题、磁盘管理、网页终端与 SFTP 服务。
 
 常用代理为 OpenClash 或 Clashoo，按需选择运行；同时集成多个插件不代表需要同时运行多个透明代理服务。
 x86 集成 Clashoo 时会在构建中预下载 Country、GeoIP、GeoSite 和 ASN 数据，减少首次启动时的在线下载。
 核心由 Clashoo 软件包提供；预置数据是构建时快照，后续可通过插件更新。
-默认不集成 Passwall、Passwall2 或 HomeProxy。
+Passwall 默认内置中文界面、Xray、Sing-box、Hysteria 及 Geo 数据。刷机后可先在 Passwall 中配置节点并启用，
+建立代理环境后再配置其他插件；切换透明代理时先停止当前服务。主页会显示已安装的 Passwall 入口。
+默认不集成 Passwall2 或 HomeProxy。
 
 编辑插件清单时，保留所选插件需要的依赖组。Clashoo 与 Nikki、Quickfile 与 luci-app-run
 存在配置冲突，避免同时集成对应组合。

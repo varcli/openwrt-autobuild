@@ -81,8 +81,12 @@ NETMASK='255.255.255.0'
 用户主要使用 **OpenClash 或 Clashoo**，插件选择按实际需求维护，不将现有代理组合固化为必须保留的功能。
 当前 x86 同时集成两者，N1 集成 OpenClash；集成多个插件不代表要同时运行多个透明代理服务。
 
-Passwall、Passwall2 和 HomeProxy 不默认集成，也不额外加入它们使用的 xray-core、sing-box、hysteria、
-geoview 等组件。共享依赖应按仍在使用的插件判断，不能仅因也被 Passwall 使用就删除。
+两个目标默认集成 Passwall 与中文界面，作为先建立代理环境、再配置其他插件的可选入口。
+插件清单显式加入 xray-core、sing-box、hysteria、geoview、v2ray-geoip、v2ray-geosite，
+以及 dnsmasq-full、kmod-nft-tproxy、kmod-nft-socket；排除精简版 dnsmasq，避免冲突。
+预编译 Passwall 的基础依赖仍由包管理器解析，不能将 ImageBuilder 的 INCLUDE 子选项当成重新编译插件。
+不预设订阅或节点，不默认启动多个透明代理。Passwall2 和 HomeProxy 不默认集成。
+共享依赖应按仍在使用的插件判断，不能仅因也被 Passwall 使用就删除。
 OpenClash 的完整依赖组由 apk 插件清单维护：
 
 ```text
@@ -92,7 +96,7 @@ luci-compat bash curl ip-full unzip kmod-tun kmod-inet-diag kmod-nft-tproxy kmod
 构建脚本下载内核和规则文件不会自动补齐这些依赖，不能当作冗余删除；curl 的重复声明无害。
 x86 按插件选择下载 OpenClash 内核、GeoIP、GeoSite、最新 apk，或 ssr-plus 所需的 mihomo。
 选择 Clashoo 时直接在 `x86-64/build.sh` 中预置 `/etc/clashoo/` 下的 Country.mmdb、
-GeoSite.dat（含小写兼容链接）、geoip.dat 和 GeoLite2-ASN.mmdb。数据源匹配其默认 Loyalsoldier 设置，
+GeoSite.dat（含小写兼容链接）、geoip.dat 和 GeoLite2-ASN.mmdb（同时预置核心读取的 ASN.mmdb）。数据源匹配其默认 Loyalsoldier 设置，
 复用同次构建已下载的 OpenClash Geo 数据；不重复下载包内核心，不默认加入其他代理核心或面板。
 预下载或数据检查失败必须终止构建；这些是构建时的数据快照，后续仍可在 Clashoo 中更新。
 
