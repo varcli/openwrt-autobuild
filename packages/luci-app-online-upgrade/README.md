@@ -1,5 +1,8 @@
 # luci-app-online-upgrade — 本仓库 x86 适配版
 
+界面使用中性色、细边框面板和绿色状态，与主页及网络向导保持一致。
+样式在自身 `root/www/luci-static/resources/online-upgrade/style.css` 中维护，不依赖主页插件。
+
 ## 构建
 
 仅由 x86 工作流挂载到 ImageBuilder 的 `package-sources/`。

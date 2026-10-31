@@ -14,6 +14,7 @@ echo "Building for ROOTFS_PARTSIZE: $ROOTFS_PARTSIZE"
 echo "$(date '+%Y-%m-%d %H:%M:%S') - 开始构建arm64的rootfs.tar.gz"
 # 定义所需安装的包列表 下列插件你都可以自行删减
 PACKAGES=""
+PACKAGES="$PACKAGES luci-app-home"
 PACKAGES="$PACKAGES curl fdisk"
 PACKAGES="$PACKAGES luci-i18n-diskman-zh-cn"
 PACKAGES="$PACKAGES luci-i18n-package-manager-zh-cn"
@@ -44,6 +45,7 @@ echo "✅ Run files copied to extra-packages:"
 ls -lah /home/build/immortalwrt/extra-packages/
 # 解压并拷贝ipk到packages目录
 sh shell/prepare-packages.sh
+bash shell/build-home.sh ipk "$BUILD_TMP_DIR"
 ls -lah /home/build/immortalwrt/packages/
 # 添加架构优先级信息
 sed -i '1i\

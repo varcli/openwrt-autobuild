@@ -20,10 +20,12 @@ shell/build-common.sh               公共参数校验、错误处理、下载�
 shell/*custom-packages.sh            各目标插件清单
 shell/*prepare-packages.sh           解包第三方 .run 并收集 apk/ipk
 shell/build-online-upgrade.sh        使用 ImageBuilder 的 apk-tools 打包在线更新插件
+shell/build-home.sh                  使用 ImageBuilder 自带工具打包主页 apk/ipk
 shell/firmware-update.py             生成构建标识、更新清单与 SHA256
 shell/prepare-n1-files.sh            暂存 N1 覆盖层并设置晶晨宝盒更新仓库
 shell/prepare-n1-release.py          校验 N1 发布镜像名称、内核分支和压缩数据
 packages/luci-app-online-upgrade/    x86 在线更新插件源码
+packages/luci-app-home/              两目标共用的主页插件源码
 files/                              两目标共享的固件文件覆盖层
 files/etc/uci-defaults/99-custom.sh   首次启动网络与服务默认值
 files/etc/banner                    共享的静态终端欢迎信息
@@ -124,6 +126,36 @@ extra-packages 根目录、一级子目录的散包。解包和复制失败必�
 发布要求前序步骤成功且目标固件存在、非空。N1 额外检查 `PACKAGED_STATUS=success`
 和文件整理步骤的 ready 输出。上传保持 `fail_on_unmatched_files: true`，防止无附件发布。
 
+## 设备主页
+
+主页源码位于 `packages/luci-app-home/root/`，同时支持 x86 和 N1；菜单为 `admin/home`，顺序为 1。
+两目标将仓库 `packages/` 只读挂载为容器 `package-sources/`；第三方包整理后执行 `shell/build-home.sh`，
+x86 使用自带 `apk mkpkg`，N1 使用自带 `scripts/ipkg-build` 打包，再通过 `PACKAGES` 安装 `luci-app-home`。
+主页文件不再进入共享 `files/` 覆盖层，不另引入 SDK；依赖为 luci-base、rpcd-mod-file、rpcd-mod-luci。
+通过 LuCI 的系统、接口、网卡、挂载点与服务查询接口读取状态，不安装额外后端。
+
+- ACL 文件 `packages/luci-app-home/root/usr/share/rpcd/acl.d/luci-app-home.json` 仅提供读取权限，不加入 exec 或写操作。
+- CPU 和 LAN 收发速率取相邻采样差值；首次采样、计数回退或读取失败时显示未知，不伪造零值。
+- 模式依据当前 LAN、DHCP 和 WAN 配置判定，不将固件默认值或网卡数量当成当前模式。
+- 网关就绪仅表示存在 IPv4 默认路由，LAN 流量包含本地通信，不能表示互联网连通或测速结果。
+- 常用应用从当前会话可访问的菜单中查找，不硬塞未安装的 Docker、Clashoo 或晶晨宝盒入口。
+  procd 无状态信息时仅显示已安装，不能误报运行中；N1 缺少 x86 构建信息时正常降级。
+- 所有样式限制在 `.owh-home` 下，兼容浅色、深色和窄屏，不引入在线字体或 CDN 依赖。
+- 主页、网络向导和在线更新使用统一的暖灰文字、白色面板、细边框、深色主按钮与绿色状态，
+  不增加英文装饰标题。更新插件样式独立维护于 `resources/online-upgrade/style.css`，不依赖主页包。
+
+首次网络向导位于 `view/home-setup.js`，配置规划与校验位于 `home/setup.js`，样式作用域为 `.owh-setup`。
+`/etc/config/home` 的 completed 标记控制首次入口；暂时跳过仅存当前浏览器会话，系统菜单保留向导入口。
+
+- 向导使用独立 `luci-app-home-setup` ACL，仅写 network、dhcp、firewall、home，不给主页增加写权限。
+- 先在内存中校验并生成配置方案，最终确认后检查会话待应用配置，再 `uci.save()` 和 `ui.changes.apply(true)`。
+  禁止直接 commit 或重启网络绕过 LuCI 的连接确认、超时回滚；完成标记随同网络配置提交或回滚。
+- 旁路由关闭 WAN、LAN 地址分配/IPv6 通告与 authoritative，保留 DNS；主路由须选择独立接口，
+  支持 DHCP/PPPoE/静态上网，配置 LAN DHCP、WAN6、NAT/转发与 WAN 入站拒绝。
+- 校验端口冲突、LAN/WAN 网段重叠、可用地址和网关，DHCP 池须避开本机并适配小网段。
+  不拆解已有 VLAN 过滤网桥，不抢占其他网络或网桥的端口；复杂场景交给高级网络设置。
+- 保留非向导维护的配置，不读写代理或 Docker 设置，确认摘要及日志不得包含宽带密码。
+
 ## x86 在线更新
 
 仅 x86 集成 `luci-app-online-upgrade`，目前支持 EFI 启动与 squashfs 镜像。
@@ -188,6 +220,9 @@ extra-packages 根目录、一级子目录的散包。解包和复制失败必�
 
 - `python -X utf8 -m unittest discover -s tests -v` 检查清单生成和后端失败处理。
 - `node tests/test_online_upgrade_ui.js` 检查页面权限、下载/确认分离及分区变更提示。
+- `node tests/test_home_ui.js` 检查主页模式、菜单过滤、计数差值、失败降级与只读权限。
+- `node tests/test_home_setup.js` 检查网络方案、模式切换、DHCP 地址池、参数冲突与安全应用流程。
+- `python -X utf8 -m unittest discover -s tests -p test_home_packaging.py -v` 检查主页打包；N1 实包用例需要本地准备官方 ipkg-build。
 - `python -X utf8 -m unittest discover -s tests -p test_n1_release.py -v` 检查 N1 镜像发布和默认仓库配置。
 - `git diff --check` 检查空白错误，并审阅实际 diff。
 - shell 改动运行 `bash -n`；以 `/bin/sh` 执行的脚本另运行 `sh -n`。

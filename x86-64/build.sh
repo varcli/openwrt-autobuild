@@ -30,6 +30,7 @@ fi
 
 # 使用 ImageBuilder 自带 apk-tools，将维护在仓库中的插件打成原生 apk。
 # 必须放在第三方包整理之后，避免 prepare-packages 清理刚生成的 apk。
+bash shell/build-home.sh apk "$BUILD_TMP_DIR"
 if echo "$CUSTOM_PACKAGES" | grep -q 'luci-app-online-upgrade'; then
     source shell/build-online-upgrade.sh
 fi
@@ -41,6 +42,7 @@ echo "$(date '+%Y-%m-%d %H:%M:%S') - 开始构建固件..."
 # ============= imm仓库内的插件==============
 # 定义所需安装的包列表 下列插件你都可以自行删减
 PACKAGES=""
+PACKAGES="$PACKAGES luci-app-home"
 PACKAGES="$PACKAGES qemu-ga"
 PACKAGES="$PACKAGES curl"
 PACKAGES="$PACKAGES luci-i18n-diskman-zh-cn"

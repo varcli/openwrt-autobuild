@@ -1,0 +1,14 @@
+{
+  "admin/home": {
+    "title": "主页",
+    "order": 1,
+    "action": { "type": "view", "path": "home" },
+    "depends": { "acl": ["luci-app-home"] }
+  },
+  "admin/system/home-setup": {
+    "title": "网络向导",
+    "order": 2,
+    "action": { "type": "view", "path": "home-setup" },
+    "depends": { "acl": ["luci-app-home-setup"] }
+  }
+}

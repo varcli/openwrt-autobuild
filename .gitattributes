@@ -4,3 +4,4 @@ shell/firmware-update.py text eol=lf
 shell/prepare-n1-files.sh text eol=lf
 shell/prepare-n1-release.py text eol=lf
 tests/** text=auto eol=lf
+shell/build-home.sh text eol=lf

@@ -1,0 +1,2 @@
+config settings 'main'
+	option completed '0'

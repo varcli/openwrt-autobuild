@@ -1,0 +1,21 @@
+{
+  "luci-app-home": {
+    "description": "Read device and network information for the home page",
+    "read": {
+      "ubus": {
+        "system": ["board", "info"],
+        "network.interface": ["dump"],
+        "luci-rpc": ["getNetworkDevices"],
+        "luci": ["getMountPoints"],
+        "service": ["list"],
+        "file": ["read"],
+        "uci": ["get"]
+      },
+      "file": {
+        "/proc/stat": ["read"],
+        "/usr/share/online-upgrade/build.json": ["read"]
+      },
+      "uci": ["network", "dhcp", "home"]
+    }
+  }
+}

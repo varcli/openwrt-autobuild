@@ -1,0 +1,18 @@
+{
+  "luci-app-home-setup": {
+    "description": "Configure basic LAN/WAN routing with the network wizard",
+    "read": {
+      "ubus": {
+        "luci-rpc": ["getNetworkDevices"],
+        "network.interface": ["dump"],
+        "network.device": ["status"],
+        "uci": ["get", "changes"]
+      },
+      "uci": ["network", "dhcp", "firewall", "home"]
+    },
+    "write": {
+      "ubus": { "uci": ["add", "set", "delete", "order", "changes", "apply", "confirm", "revert"] },
+      "uci": ["network", "dhcp", "firewall", "home"]
+    }
+  }
+}

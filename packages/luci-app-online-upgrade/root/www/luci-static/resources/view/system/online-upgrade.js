@@ -66,6 +66,7 @@ return view.extend({
 			self.targetConfig.textContent = status.include_docker == null ? '—' :
 				(status.include_docker === 'true' ? '含 Docker' : '不含 Docker') + ' / ' + status.rootfs_partsize + ' MB';
 			self.message.textContent = status.message;
+			self.message.className = 'ou-status' + (status.phase === 'error' ? ' is-error' : status.phase === 'ready' ? ' is-ready' : '');
 			self.latest.textContent = status.version || '尚未查询';
 			self.filename.textContent = status.filename || '—';
 			self.checksum.textContent = status.sha256 || '—';
@@ -192,12 +193,12 @@ return view.extend({
 			'class': 'cbi-input-text', 'aria-label': 'API 加速前缀', placeholder: '留空直连 GitHub API',
 			value: uci.get('online-upgrade', 'main', 'api_mirror') || '', disabled: writable ? null : true
 		});
-		this.message = E('p', { role: 'status', 'aria-live': 'polite' }, '点击检查更新。');
+		this.message = E('p', { 'class': 'ou-status', role: 'status', 'aria-live': 'polite' }, '点击检查更新。');
 		this.latest = E('span', {}, '尚未查询');
 		this.filename = E('span', {}, '—');
 		this.checksum = E('code', { style: 'overflow-wrap:anywhere' }, '—');
 		this.release = E('span', {}, '—');
-		this.log = E('pre', { style: 'max-height:24em;overflow:auto;white-space:pre-wrap' }, '暂无日志。');
+		this.log = E('pre', { 'class': 'ou-log' }, '暂无日志。');
 		this.saveButton = E('button', { 'class': 'btn', disabled: writable ? null : true, click: function() {
 			var value = repository.value.trim();
 			if (!/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(value)) {
@@ -230,25 +231,38 @@ return view.extend({
 		this.upgradeButton = E('button', { 'class': 'btn cbi-button-negative', disabled: true,
 			click: function() { self.confirmUpgrade(); } }, '升级固件');
 
-		function row(label, value) { return E('tr', {}, [E('th', { style: 'width:10em;text-align:left' }, label), E('td', {}, value)]); }
-		var page = E('div', {}, [
-			E('h2', {}, 'GitHub 固件更新'),
-			E('p', {}, '列出最近 100 条发布中的 x86 固件，默认选择最新可用版本，可选择历史版本或不同 Docker 配置。仅支持 x86-64 / EFI / squashfs；下载校验完成后，仍需手动确认升级。'),
-			E('div', { 'class': 'cbi-section' }, [
-				E('table', { 'class': 'table' }, [
-					row('当前构建', build.version), row('提交版本', (build.commit || '未知').slice(0, 12)),
-					row('固件配置', (build.include_docker ? '含 Docker' : '不含 Docker') + ' / ' + build.rootfs_partsize + ' MB'),
-					row('GitHub 仓库', repository), row('下载加速', this.mirror), row('自定义镜像前缀', this.customMirror),
-					row('API 加速前缀', this.apiMirror), row('应用设置', this.saveButton),
-					row('选择固件', this.selector), row('目标配置', this.targetConfig),
-					row('目标构建', this.latest), row('镜像文件', this.filename), row('SHA256', this.checksum), row('更新说明', this.release)
-				]),
-				E('p', { 'class': 'cbi-value-description' }, '保存并检查后生效。下载加速用于更新清单和固件；版本列表默认直连 GitHub API。API 加速须使用支持该接口的服务，地址格式为 HTTPS 前缀，插件会在后面拼接完整原始 URL。'),
-				E('p', { 'class': 'cbi-value-description' }, '使用镜像时，所选服务将转发下载内容。SHA256 校验仍会执行，但镜像同时提供清单和固件，不构成独立签名验证。'),
-				this.message,
-				E('div', { 'class': 'cbi-page-actions' }, [this.checkButton, ' ', this.downloadButton, ' ', this.upgradeButton])
+		function row(label, value) { return E('div', { 'class': 'ou-row' }, [E('div', { 'class': 'ou-label' }, label), E('div', { 'class': 'ou-value' }, value)]); }
+		var page = E('div', { 'class': 'ou-page' }, [
+			E('link', { rel: 'stylesheet', href: L.resource('online-upgrade/style.css') }),
+			E('header', { 'class': 'ou-header' }, [
+				E('div', {}, [E('h2', {}, 'GitHub 固件更新'), E('p', {}, '选择发布版本，下载校验后确认升级。支持 x86-64 / EFI / squashfs。')]), this.checkButton
 			]),
-			E('h3', {}, '操作日志'), this.log
+			E('section', { 'class': 'ou-current' }, [
+				E('div', {}, [E('span', { 'class': 'ou-label' }, '当前构建'), E('strong', { 'class': 'ou-build' }, build.version)]),
+				E('div', {}, [E('span', { 'class': 'ou-label' }, '固件配置'), E('span', {}, (build.include_docker ? '含 Docker' : '不含 Docker') + ' / ' + build.rootfs_partsize + ' MB')]),
+				E('div', {}, [E('span', { 'class': 'ou-label' }, '提交版本'), E('code', {}, (build.commit || '未知').slice(0, 12))])
+			]),
+			E('div', { 'class': 'ou-grid' }, [
+				E('section', { 'class': 'ou-panel' }, [
+					E('h3', {}, '更新设置'),
+					row('GitHub 仓库', repository), row('下载加速', this.mirror), row('自定义镜像前缀', this.customMirror), row('API 加速前缀', this.apiMirror),
+					E('div', { 'class': 'ou-settings-action' }, this.saveButton),
+					E('details', { 'class': 'ou-help' }, [
+						E('summary', {}, '镜像地址说明'),
+						E('p', {}, '保存并检查后生效。下载镜像用于清单和固件；版本列表默认直连 GitHub API。API 加速须使用支持该接口的服务，HTTPS 前缀后拼接完整原始 URL。'),
+						E('p', {}, '镜像会转发清单和固件。SHA256 校验仍会执行，但不构成独立签名验证。')
+					])
+				]),
+				E('section', { 'class': 'ou-panel' }, [
+					E('h3', {}, '选择固件'),
+					E('div', { 'class': 'ou-selection' }, this.selector),
+					E('p', { 'class': 'ou-help' }, '默认选择最新可用构建，也可选择历史版本或切换 Docker 配置。'),
+					E('div', { 'class': 'ou-metadata' }, [row('目标构建', this.latest), row('目标配置', this.targetConfig), row('镜像文件', this.filename), row('SHA256', this.checksum), row('更新说明', this.release)]),
+					this.message,
+					E('div', { 'class': 'ou-actions' }, [this.downloadButton, this.upgradeButton])
+				])
+			]),
+			E('section', { 'class': 'ou-panel ou-logs' }, [E('h3', {}, '操作日志'), this.log])
 		]);
 		if (writable) {
 			poll.add(L.bind(this.refresh, this), 3);

@@ -9,6 +9,7 @@
 
 - **自动构建与发布**：通过 GitHub Actions 生成固件并上传至 Releases。
 - **识别网口数量**：单网口采用静态旁路由配置，多网口设置主路由 LAN 管理地址。
+- **设备主页**：集中查看网络路径、资源状态、LAN 流量和常用应用，支持 x86 与 N1。
 - **按需集成插件**：通过插件清单选择代理、文件管理、流量监控等功能，可选集成 Docker。
 - **虚拟机支持**：x86-64 集成 QEMU Guest Agent，便于虚拟化平台管理。
 - **N1 镜像打包**：构建 ARM64 rootfs 后，使用 flippy 工作流打包设备镜像。
@@ -84,6 +85,41 @@
 
 容量参数不等于压缩固件文件大小，N1 最终磁盘布局由后续打包步骤决定。
 工作流也支持 `repository_dispatch` 触发，无手动输入时采用上述默认值。
+
+## 设备主页
+
+固件内置原生 LuCI 主页，入口为左侧 **主页**，地址为 `/cgi-bin/luci/admin/home`。
+主页排在菜单首位，标准 LuCI 登录入口会优先进入；原有“状态 → 概览”仍可访问。
+x86 和 N1 共用 `packages/luci-app-home/` 插件源码，分别打包为 apk 和 ipk，通过包管理器安装。
+不依赖 iStore、quickstart 后端或在线前端资源。
+
+- **网络概览**：LAN 地址、当前 IPv4 默认网关、DNS 和 DHCPv4 配置；根据当前配置显示旁路由、主路由或自定义网络。
+- **设备状态**：CPU、内存、根分区可用空间及运行时间。首次采样时 CPU 和流量暂不显示数值。
+- **LAN 实时流量**：每 5 秒刷新，保留最近 30 次采样；统计包含本地通信，不代表互联网带宽或连通性。
+- **常用应用**：按当前可访问菜单展示 OpenClash、Clashoo、Docker、固件更新、晶晨宝盒、Bandix、文件管理和终端。
+  服务状态能确认时显示运行情况，否则显示“已安装”，不把缺少状态信息当作服务正常。
+- **网络接口与快捷入口**：查看接口地址与连接状态，进入网络、DHCP、防火墙、备份和详细状态页面。
+
+主页仅申请读取权限，打开页面不会修改网络、启动服务或执行更新。
+样式支持窄屏与深色主题；页面、样式、菜单和权限均位于 `packages/luci-app-home/root/`。
+打包方式见 [主页插件说明](packages/luci-app-home/README.md)。
+
+### 首次网络配置
+
+首次打开主页时进入网络向导，按“选择模式 → 网络设置 → 确认配置”完成设置。
+也可暂时保留现有配置进入主页，之后从 **系统 → 网络向导** 重新打开。
+
+- **旁路由**：选择 LAN 网口、管理地址、掩码、主路由地址和 IPv4 DNS。关闭 WAN、LAN DHCPv4、
+  DHCPv6、RA、NDP 及 dnsmasq 唯一授权，保留 DNS 服务；客户端仍需手动指定网关。
+- **主路由**：分别选择 LAN 和 WAN 接口，上网方式支持 DHCP、PPPoE、静态地址。
+  启用 LAN DHCP、LAN 到 WAN 转发与 NAT，WAN 入站设为拒绝；WAN6 自动获取，LAN 提供 DHCPv6/RA。
+- 主路由要求独立的 LAN/WAN 接口。向导不创建 VLAN，不处理已有 VLAN 过滤网桥或复杂网络，
+  这些场景使用“高级网络设置”。
+
+应用前会检查网口冲突、地址、网段和网关，并展示最终配置与新管理地址。
+应用使用 LuCI 原生的连接检查、确认和超时回滚；变更地址后按提示连接新地址完成确认。
+当前会话已有未应用配置时，须先处理后再使用向导。
+完成状态与网络配置一起应用并保存；保留配置升级会保留该状态。“暂时跳过”仅对当前浏览器会话生效。
 
 ## x86 在线更新
 
@@ -182,7 +218,7 @@ N1 集成 OpenClash、Turbo ACC、应用过滤、分区扩容及用于写入 eMM
 x86-64/              x86 配置与构建脚本
 phicomm-n1/          N1 配置与构建脚本
 shell/               公共构建函数、插件清单、第三方包整理
-packages/            本仓库维护的 x86 内置插件源码
+packages/            本仓库维护的内置插件源码（主页、x86 在线更新）
 files/               固件文件覆盖层与首次启动配置
 tests/               本地离线回归测试（已被 Git 忽略）
 AGENTS.md            仓库维护约定
@@ -190,6 +226,7 @@ AGENTS.md            仓库维护约定
 
 ## 参考与鸣谢
 
+- [luci-app-myhome](https://github.com/qzrsa/luci-app-myhome) 与 [luci-app-quickstart](https://github.com/linkease/nas-packages-luci)：主页布局思路参考。
 - [ImmortalWrt](https://github.com/immortalwrt)
 - [ImmortalWrt ImageBuilder](https://github.com/wukongdaily/ImmortalWrt-ImageBuilder)
 - [AutoBuildImmortalWrt](https://github.com/wukongdaily/AutoBuildImmortalWrt)
