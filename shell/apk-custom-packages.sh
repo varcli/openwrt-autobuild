@@ -18,9 +18,6 @@ CUSTOM_PACKAGES="$CUSTOM_PACKAGES luci-app-partexp luci-i18n-partexp-zh-cn"
 CUSTOM_PACKAGES="$CUSTOM_PACKAGES bandix luci-app-bandix luci-i18n-bandix-zh-cn"
 # 新增ssrp apk
 #CUSTOM_PACKAGES="$CUSTOM_PACKAGES kmod-nft-tproxy kmod-nft-socket xray-core naiveproxy luci-app-ssr-plus luci-i18n-ssr-plus-zh-cn"
-# 新增passwall2 apk（已停用：代理以 openclash 为主，避免功能重叠重复占用空间）
-#CUSTOM_PACKAGES="$CUSTOM_PACKAGES geoview xray-core sing-box hysteria kmod-nft-socket kmod-nft-tproxy luci-app-passwall2 luci-i18n-passwall2-zh-cn"
-#CUSTOM_PACKAGES="$CUSTOM_PACKAGES xray-core sing-box hysteria kmod-nft-socket kmod-nft-tproxy luci-app-passwall2 luci-i18n-passwall2-zh-cn"
 # IPTV 流媒体转发服务器 - rtp2httpd by stackia
 CUSTOM_PACKAGES="$CUSTOM_PACKAGES luci-app-rtp2httpd luci-i18n-rtp2httpd-zh-cn"
 # 新增 clashoo by kenzok8 注意若集成clashoo 则不能集成nikki 目前它们俩配置冲突
@@ -41,8 +38,7 @@ CUSTOM_PACKAGES="$CUSTOM_PACKAGES clashoo luci-app-clashoo luci-i18n-clashoo-zh-
 # MosDNS
 #CUSTOM_PACKAGES="$CUSTOM_PACKAGES luci-app-mosdns luci-i18n-mosdns-zh-cn"
 #CUSTOM_PACKAGES="$CUSTOM_PACKAGES luci-i18n-homeproxy-zh-cn"
-#CUSTOM_PACKAGES="$CUSTOM_PACKAGES geoview xray-core sing-box hysteria luci-i18n-passwall-zh-cn"
-# 代理以 openclash 为主（本行已启用依赖组，勿删；删了 openclash 会缺依赖起不来）
+# OpenClash（已启用；依赖组随插件一起维护，与 Clashoo 按需选择使用）
 CUSTOM_PACKAGES="$CUSTOM_PACKAGES luci-app-openclash luci-compat bash curl ip-full unzip kmod-tun kmod-inet-diag kmod-nft-tproxy kmod-nft-socket"
 # VPN
 CUSTOM_PACKAGES="$CUSTOM_PACKAGES luci-proto-wireguard"

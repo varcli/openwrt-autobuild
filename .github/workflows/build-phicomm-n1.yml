@@ -33,6 +33,9 @@ on:
           - "6.12.y"
 env:
   TZ: Asia/Shanghai
+  OPENWRT_KERNEL: ${{ inputs.openwrt_kernel || '6.1.y_6.6.y' }}
+  ROOTFS_PARTSIZE: ${{ inputs.rootfs_partsize || '1024' }}
+  INCLUDE_DOCKER: ${{ inputs.include_docker || 'yes' }}
   ImageBuilderVersion: armsr-armv8-openwrt-24.10.6 # 详见https://hub.docker.com/r/immortalwrt/imagebuilder
 
 jobs:
@@ -55,8 +58,6 @@ jobs:
       - name: 编译固件
         id: compile
         run: |
-          size="${{ github.event.inputs.rootfs_partsize }}"
-          include_docker="${{ github.event.inputs.include_docker }}"
           docker run --rm -i \
             --user root \
             -v "${{ github.workspace }}/bin:/home/build/immortalwrt/bin" \
@@ -64,8 +65,9 @@ jobs:
             -v "${{ github.workspace }}/${{ matrix.target }}/.config:/home/build/immortalwrt/.config" \
             -v "${{ github.workspace }}/shell:/home/build/immortalwrt/shell" \
             -v "${{ github.workspace }}/${{ matrix.target }}/build.sh:/home/build/immortalwrt/build.sh" \
-            -e ROOTFS_PARTSIZE=$rootfs_partsize \
-            -e INCLUDE_DOCKER=$include_docker \
+            -e ROOTFS_PARTSIZE \
+            -e INCLUDE_DOCKER \
+            -e PROFILE=generic \
             immortalwrt/imagebuilder:${{ env.ImageBuilderVersion }} /bin/bash /home/build/immortalwrt/build.sh
 
           echo "COMPILESTATUS=success" >> $GITHUB_ENV
@@ -83,49 +85,62 @@ jobs:
 
       - name: 打包 Armvirt as ImmortalWrt for N1
         uses: ophub/flippy-openwrt-actions@main
-        if: env.COMPILESTATUS == 'success' && !cancelled()
+        if: env.COMPILESTATUS == 'success' && success()
         env:
           OPENWRT_ARMVIRT: ${{ steps.find_rootfs.outputs.file }}
           PACKAGE_SOC: s905d
-          KERNEL_VERSION_NAME: ${{ inputs.openwrt_kernel }}
+          KERNEL_VERSION_NAME: ${{ env.OPENWRT_KERNEL }}
           KERNEL_AUTO_LATEST: true
           WHOAMI: varcli
 
       - name: 整理文件
         id: files
-        if: env.PACKAGED_STATUS == 'success' && !cancelled()
+        if: env.COMPILESTATUS == 'success' && success()
         run: |
-          ls -l ${{ env.PACKAGED_OUTPUTPATH }}
+          if [ "$PACKAGED_STATUS" != "success" ]; then
+            echo "错误：N1 固件打包未成功"
+            exit 1
+          fi
+          test -n "$PACKAGED_OUTPUTPATH"
+          test -d "$PACKAGED_OUTPUTPATH"
+          ls -l "$PACKAGED_OUTPUTPATH"
           mkdir -p ${{ github.workspace }}/dist
-          cp ${{ env.PACKAGED_OUTPUTPATH }}/** ${{ github.workspace }}/dist
+          cp "$PACKAGED_OUTPUTPATH"/* ${{ github.workspace }}/dist
           rm -rf ${{ github.workspace }}/dist/*-kernel.bin
           rm -rf ${{ github.workspace }}/dist/*.manifest
           rm -rf ${{ github.workspace }}/dist/*.json
           rm -rf ${{ github.workspace }}/dist/sha256sums
+          find "${{ github.workspace }}/dist" -maxdepth 1 -type f -name '*.img.gz' -size +0c -print -quit | grep -q .
+          echo "ready=true" >> "$GITHUB_OUTPUT"
           ls -l ${{ github.workspace }}/dist
 
       - name: 生成release信息
         id: release_info
-        if: env.COMPILESTATUS == 'success' && !cancelled()
+        if: env.PACKAGED_STATUS == 'success' && steps.files.outputs.ready == 'true' && success()
         run: |
           echo "release_name=$(date +"%Y.%m.%d-%H%M")" >> $GITHUB_OUTPUT
           touch release.txt
           echo "${{ matrix.target }} 固件" >> release.txt
-          echo "内核版本 ${{ github.event.inputs.openwrt_kernel }}" >> release.txt
-          if [ "${{ github.event.inputs.include_docker }}" == "yes" ]; then
+          echo "内核版本 $OPENWRT_KERNEL" >> release.txt
+          if [ "$INCLUDE_DOCKER" = "yes" ]; then
             echo "带docker功能" >> release.txt
           fi
           echo "账户：root" >> release.txt
           echo "密码：无" >> release.txt
+          echo "单网口旁路由默认地址：http://192.168.123.2" >> release.txt
+          echo "DHCPv4、DHCPv6、IPv6 RA 和 NDP 服务默认关闭，DNS 服务保留。" >> release.txt
+          echo "客户端使用同网段地址，手动设置网关为 192.168.123.2；需要 DNS 经旁路由处理时，DNS 也设为 192.168.123.2。" >> release.txt
+          echo "主路由默认地址为 192.168.123.1；保留配置升级时可能沿用旧设置。" >> release.txt
 
       - name: 发布固件
         id: release
-        if: env.COMPILESTATUS == 'success' && !cancelled()
+        if: env.PACKAGED_STATUS == 'success' && steps.files.outputs.ready == 'true' && success()
         uses: softprops/action-gh-release@v2
         with:
           # name: ${{ matrix.target }}⭐️${{ steps.release_info.outputs.release_name }}
           tag_name: ${{ matrix.target }}⭐️${{ steps.release_info.outputs.release_name }}
           body_path: release.txt
+          fail_on_unmatched_files: true
           files: |
             ${{ github.workspace }}/dist/**
           token: ${{ secrets.GITHUB_TOKEN }}
@@ -133,7 +148,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: 清理Workflow
-        if: env.COMPILESTATUS == 'success' && !cancelled()
+        if: env.PACKAGED_STATUS == 'success' && steps.files.outputs.ready == 'true' && success()
         uses: Mattraks/delete-workflow-runs@v2
         with:
           retain_days: 7

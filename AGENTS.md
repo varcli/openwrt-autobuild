@@ -1,174 +1,158 @@
 # AGENTS.md
 
-本文件面向在本仓库工作的 AI 编码助手，记录项目结构、改版约定与踩坑点。
+本文件供在本仓库工作的 AI 编码助手使用，描述当前实现和维护约束。历史变更查阅 Git 记录，不在此累积升级日志。
 
-## 项目概览
+## 项目定位
 
-基于 GitHub Actions + ImmortalWrt 官方 **ImageBuilder** Docker 镜像的固件自动构建项目。
-构建过程不在本机完成，而是在 CI 中挂载本仓库文件进容器执行。
+本项目通过 GitHub Actions 和 ImmortalWrt 官方 ImageBuilder Docker 镜像打包固件，不从源码编译 OpenWrt。
+实际构建在 CI 容器中完成，本机主要用于编辑、分析和检查。
 
-固件内的首次启动脚本、插件清单、ImageBuilder 配置分别由 `files/`、`shell/`、`<target>/.config` 提供。
+主要用途是**单网口旁路由**：主路由负责地址分配，客户端手动指定网关。
+x86-64 主要运行在虚拟机中，另一个目标为斐讯 N1。优化应保持已可用的旁路由行为与构建流程。
 
-## 项目定位：旁路由（重要前提）
+## 文件入口
 
-本仓库固件**主要作为旁路由使用**，这与上游参考项目 `wukongdaily/ImmortalWrt-ImageBuilder`
-的定位**不同**，是理解本仓库所有"刻意差异"的前提。
-
-旁路由的典型配置是同网段静态 IP + 网关/DNS 指向主路由。本仓库
-`files/etc/uci-defaults/99-custom.sh` 单网口分支设的
-`ipaddr=192.168.123.2` / `gateway=192.168.123.1` / `dns=192.168.123.1` 正是这个模式。
-
-上游面向"开箱即用当主路由/客户端"，其脚本在单网口设备上设 `network.lan.proto='dhcp'`（当客户端），
-**与旁路由需求相反**。因此涉及网络部分的改动，不要把上游那套当升级目标照搬。
-
-### 运行环境：虚拟机
-
-x86-64 固件**主要安装在虚拟机中**作为旁路由运行。因此：
-
-- `x86-64/build.sh` 中的 **`qemu-ga` 必须保留**（上游已将其删除，本仓库有意保留）。
-  它提供宿主机与来宾机之间的通信通道，删掉会导致虚拟化平台无法正常管理该虚机。
-- 基于同一原因，涉及"精简包体积"的改动不要默认砍掉 qemu-ga。
-
-## 目录结构与职责
-
-```
-<target>/build.sh      # 该机型在容器内执行的主脚本（组装 PACKAGES 并调用 make image）
-<target>/.config       # ImageBuilder 的 .config，含 CONFIG_VERSION_REPO（决定软件源版本）
-.github/workflows/     # 每个机型一个 workflow，负责挂载与发布
-files/                 # 打进固件的文件树，与容器 /home/build/immortalwrt/files 同构
-files/etc/uci-defaults/99-custom.sh   # 首次开机执行的定制脚本
-shell/                 # 构建期脚本，与容器 /home/build/immortalwrt/shell 同构
-README.md
+```text
+.github/workflows/build-<target>.yml  镜像选择、参数传递、文件挂载、固件发布
+<target>/.config                     ImageBuilder 配置与软件源版本
+<target>/build.sh                    组装包列表、下载代理组件、执行 make image
+shell/build-common.sh               公共参数校验、错误处理、下载和克隆函数
+shell/*custom-packages.sh            各目标插件清单
+shell/*prepare-packages.sh           解包第三方 .run 并收集 apk/ipk
+files/                              两目标共享的固件文件覆盖层
+files/etc/uci-defaults/99-custom.sh   首次启动网络与服务默认值
+files/etc/banner                    共享的静态终端欢迎信息
+README.md                           面向使用者的构建与旁路由说明
 ```
 
-## 两个构建目标（关键差异）
+工作流将仓库文件挂载到容器 `/home/build/immortalwrt/` 后执行目标脚本。
+`files/` 直接进入固件，`shell/` 仅用于构建期。修改共享文件时必须评估两个目标。
 
-| | x86-64 | phicomm-n1 |
-|---|---|---|
+## 构建目标
+
+以下为仓库当前配置。升级前重新查询可用的镜像标签和软件包索引。
+
+| 项目 | x86-64 | phicomm-n1 |
+| --- | --- | --- |
 | workflow | `build-x86-64.yml` | `build-phicomm-n1.yml` |
-| 镜像 | `x86-64-openwrt-<ver>` | `armsr-armv8-openwrt-<ver>` |
-| 版本线 | 25.12.x | 24.10.x |
-| 包格式 | **apk**（`.config` 中 `CONFIG_USE_APK=y`） | **ipk**（opkg） |
-| 插件脚本 | `shell/apk-custom-packages.sh` | `shell/custom-packages.sh` |
-| 打包脚本 | `shell/apk-prepare-packages.sh` | `shell/prepare-packages.sh` |
-| 输出 | `*-squashfs-combined-efi.img.gz` | `rootfs.tar.gz` 再经 `flippy-openwrt-actions` 打成 N1 镜像 |
+| Docker 标签 | `x86-64-openwrt-25.12.2` | `armsr-armv8-openwrt-24.10.6` |
+| 包格式 | apk，`CONFIG_USE_APK=y` | ipk，opkg |
+| 插件清单 | `shell/apk-custom-packages.sh` | `shell/custom-packages.sh` |
+| 包整理 | `shell/apk-prepare-packages.sh` | `shell/prepare-packages.sh` |
+| 第三方来源 | `wukongdaily/apk` 的 `run/x86` | `wukongdaily/store` 的 `run/arm64` |
+| Docker 默认 | `no` | `yes` |
+| 产物 | `*-squashfs-combined-efi.img.gz` | `rootfs.tar.gz`，随后由 flippy 打包为 N1 镜像 |
 
-### 务必注意
+两个 custom-packages 脚本独立生效，改错文件不会报错，只会静默不生效。
 
-- **`shell/` 下的两个 `custom-packages` 文件互不相干**：各自被对应机型的 `build.sh` `source`，
-  改错文件不会报错，只是静默不生效。
-- **`files/` 是共享的**，两个机型都会打入 —— 改 `99-custom.sh` 会同时影响 x86-64 和 N1。
-- x86-64 与 N1 均为**单网口**，走旁路由静态 IP 分支；多网口分支仅在物理多网口机器上生效。
+## 旁路由约定
 
-## 版本号一致性（最容易出错的地方）
+`99-custom.sh` 顶部集中定义单网口网段：
 
-改版本必须**同时**改两处，否则会出现配置文件版本与 ImageBuilder 版本不匹配：
-
-1. `.github/workflows/build-<target>.yml` 顶部的 `ImageBuilderVersion`
-2. `<target>/.config` 中的 `CONFIG_VERSION_REPO`
-
-另外注意：
-
-- **不要照搬上游参考仓库的 `.config`**：上游 `x86-64/imm25.config` 里写的是 `25.12.0-rc1`，
-  比本仓库的正式版还旧，直接覆盖等于降级。只改版本行即可。
-- N1 的版本线是 24.10.x，与 x86-64 不同步；`armsr-armv8-openwrt-24.10.6` 已是 Docker 上最新标签，
-  不要想当然跟着 x86 一起升级。
-
-### 改版检查清单
-
-1. 确认 Docker 标签存在：`https://hub.docker.com/v2/repositories/immortalwrt/imagebuilder/tags?name=<前缀>`
-2. 改上述两处版本号
-3. **核对包名是否仍存在**（跨版本会掉包，掉包将直接导致构建失败）：
-   - 25.12.x（apk）：列目录 `releases/<ver>/packages/x86_64/<feed>/` 的 `.apk` 文件名
-   - 24.10.x（ipk）：列目录 `releases/<ver>/packages/aarch64_generic/<feed>/` 的 `.ipk` 文件名
-   - feed 有 `base` / `luci` / `packages` / `routing` / `telephony`，外加 `targets/<board>/<sub>/packages/`
-4. **内核模块不在 `packages/` 里**：`kmod-*` 位于
-   `targets/<board>/<sub>/kmods/<kernel-ver>-<hash>/`，漏查会误判为"包缺失"。
-5. 需要核对的包来自三处：`build.sh` 的 `PACKAGES`、`shell/*custom-packages.sh` 中**未注释**的行、
-   `.config` 中 `CONFIG_PACKAGE_*=y`
-6. 末尾跑 `bash -n` 做语法检查
-
-### 包来源速查
-
-- ImmortalWrt 官方源：大部分 `luci-*`、内核模块、基础库
-- 第三方 run/apk 仓库 `wukongdaily/apk`（x86-64 用 `run/x86`，N1 用 `wukongdaily/store` 的 `run/arm64`）：
-  `luci-app-openclash`、`luci-app-passwall2`、`luci-app-partexp`、`bandix`、`clashoo`、`luci-app-rtp2httpd`
-  —— 这些在官方源里查不到属正常，**不要**据此判定为掉包。
-
-## 插件自定义方式
-
-`shell/*custom-packages.sh` 本质是在拼接 `PACKAGES` 字符串：
-
-- 注释掉某行 = 不集成该插件
-- 行首是 `#CUSTOM_PACKAGES=` 的就是"备选清单"，按需打开注释
-- 减号可排除依赖，例如 `-luci-app-argon-config`
-
-已知互斥（见脚本内注释）：`clashoo` ↔ `nikki`；`quickfile` ↔ `luci-app-run`。
-
-### 代理方案：以 openclash 为主
-
-x86-64 的代理插件**优先保证 `luci-app-openclash` 可用**，`passwall2` 已停用
-（功能重叠、重复占用空间），其内核 `xray-core` / `sing-box` / `hysteria` 随之一并停用。
-
-`shell/apk-custom-packages.sh` 中 openclash 那行**自带了完整依赖组**，不要当成冗余删掉：
-
+```sh
+ROUTER_IP='192.168.123.2'
+MAIN_ROUTER_IP='192.168.123.1'
+NETMASK='255.255.255.0'
 ```
+
+- 单网口 LAN 使用静态地址，网关和 DNS 指向主路由。
+- LAN 的 DHCPv4、DHCPv6、IPv6 RA、NDP 服务关闭，保留 dnsmasq DNS 服务。
+- 客户端手动将网关指向旁路由；需要 DNS 也经旁路由处理时，客户端 DNS 同样指向旁路由。
+- `openwrt.lan` 使用固定名称 `dhcp.openwrt_lan`，地址引用 `ROUTER_IP`，避免匿名 section 索引误写。
+- 广播地址由 IP 和掩码计算，不写死。更换网段时同步维护客户端设置和相关说明。
+- 不全局禁用 IPv6；关闭旁路由 RA 不会阻止客户端从主路由获得 IPv6。
+- 多网口分支保留 `192.168.100.1/24`，不套用单网口的 DHCP 关闭逻辑。
+
+网卡计数依据 `/sys/class/net/` 中存在 device 且名称以 eth/en 开头的接口。
+修改识别逻辑属于网络行为变更，应验证虚拟机和 N1 场景。
+
+首次启动脚本还维护 Docker 防火墙、ttyd/SSH 监听及 `Compiled by varcli` 署名。
+保留配置升级可能沿用旧设置，不能将首次启动默认值描述为对所有升级方式强制生效。
+
+## 常用代理与运行环境
+
+用户主要使用 **OpenClash 或 Clashoo**，插件选择按实际需求维护，不将现有代理组合固化为必须保留的功能。
+当前 x86 同时集成两者，N1 集成 OpenClash；集成多个插件不代表要同时运行多个透明代理服务。
+
+Passwall、Passwall2 和 HomeProxy 不默认集成，也不额外加入它们使用的 xray-core、sing-box、hysteria、
+geoview 等组件。共享依赖应按仍在使用的插件判断，不能仅因也被 Passwall 使用就删除。
+OpenClash 的完整依赖组由 apk 插件清单维护：
+
+```text
 luci-compat bash curl ip-full unzip kmod-tun kmod-inet-diag kmod-nft-tproxy kmod-nft-socket
 ```
 
-> `build.sh` 只内置了 openclash 的 core 下载，**不带包依赖**，缺了上面的包 openclash 起不来。
-> 其中 `curl` 在 `build.sh` 里另有重复，属无害冗余。
+构建脚本下载内核和规则文件不会自动补齐这些依赖，不能当作冗余删除；curl 的重复声明无害。
+x86 按插件选择下载 OpenClash 内核、GeoIP、GeoSite、最新 apk，或 ssr-plus 所需的 mihomo。
 
-`build.sh` 中的内置逻辑：x86-64 在检测到 `luci-app-openclash` / `luci-app-ssr-plus` 时会下载
-对应架构的 clash_meta / GeoIP / GeoSite / mihomo core 并塞进 `files/`。
+x86 保留 `qemu-ga`，用于虚拟化平台管理来宾机；N1 集成写入 eMMC 所需的 amlogic 插件。
+这些包与代理方案无关，精简代理组件时不要一并移除。
 
-## 与上游参考仓库的刻意差异
+插件清单中有效的 `CUSTOM_PACKAGES=` 行表示启用，注释行表示备选，负包名用于排除包。
+已知互斥：clashoo 与 nikki；quickfile 与 luci-app-run。
 
-上游 `wukongdaily/ImmortalWrt-ImageBuilder` 是主要参考来源。本仓库有意**不**跟随的部分：
+## 参数与可靠性
 
-- `files/etc/uci-defaults/99-custom.sh`：**保留本仓库版本，这是有意为之，不是遗漏**。
-  单网口使用静态 `192.168.123.2` + 网关/DNS 指向 `192.168.123.1`（旁路由模式），
-  且署名 `Compiled by varcli`。上游版本会把单网口改为 DHCP（当客户端）并支持 PPPoE、
-  自定义管理地址 —— 与旁路由定位冲突，属于**行为变更**，不采纳。
-  后续若同步上游，**不要**把这部分"对齐"过去。
-- 工作流结构：未引入上游的 `luci_version` 选择器、`custom_router_ip`、PPPoE 输入、`enable_store` 开关。
-- `phicomm-n1/build.sh`：保留本仓库的 passwall / openclash / homeproxy 组合，
-  未换成上游的 filebrowser-go / filemanager。
-- `x86-64/build.sh` 的 **`qemu-ga` 为有意保留**（上游已删除），虚拟机旁路由场景必需，
-  详见上文「运行环境：虚拟机」。
-- 未引入上游的 `arch/`、`n1/banner`、`n1/99-banner.sh`、`n1/info.md`。
+两个 build.sh 先设置各自的 `INCLUDE_DOCKER` 默认值，再 source `shell/build-common.sh`。
 
-### 无害但存在的冗余
+| 变量 | 含义 | 默认值 |
+| --- | --- | --- |
+| `ROOTFS_PARTSIZE` | ImageBuilder 分区容量，正整数 MB | `1024` |
+| `PROFILE` | ImageBuilder 设备型号 | `generic` |
+| `INCLUDE_DOCKER` | 是否集成 Docker，只接受 yes/no | 按目标设置 |
+| `OPENWRT_KERNEL` | workflow 传给 N1 后续打包的内核选择 | `6.1.y_6.6.y` |
 
-`x86-64/build.sh` 会写出 `files/etc/config/pppoe-settings`，但本仓库
-`build-x86-64.yml` 不传 `ENABLE_PPPOE`，`99-custom.sh` 也不读取该文件 —— 当前是死代码，可忽略。
+不要混用 PROFILE 和容量变量。N1 最终磁盘布局由 flippy 决定，容量参数不等于压缩镜像文件大小。
+手动触发和 repository_dispatch 无 inputs 时都应有可用默认值；输入通过环境变量传给 shell。
 
-## 本次升级记录（2026-10-06）
+公共脚本启用 `set -eo pipefail`，临时目录由退出 trap 清理：
 
-范围：仅版本与配置，保持 x86-64 + N1 两个目标。
+- `download_file`：超时、有限重试、非空检查，成功后才替换目标文件。
+- `install_core`：检查 tar.gz/gz 解包结果，成功后安装可执行内核。
+- `clone_repository`：克隆超时与有限重试。
 
-**版本**
-- `x86-64/.config` — `CONFIG_VERSION_REPO` 25.12.0 → 25.12.2
-- `.github/workflows/build-x86-64.yml` — `ImageBuilderVersion` → `x86-64-openwrt-25.12.2`
-- N1 未改动（已是 `armsr-armv8-openwrt-24.10.6`，为最新标签）
+关键步骤失败必须终止构建。修改时注意条件语句、管道和函数调用对 `set -e` 的影响。
+两个 prepare-packages 脚本使用 `/bin/sh`，保持 POSIX shell 兼容，收集解包所得包及
+extra-packages 根目录、一级子目录的散包。解包和复制失败必须向上传递；
+`find -exec ... \;` 内部复制失败不能简单视为 find 自身失败。
 
-**插件注释补充**（均为注释行，不影响构建产物）
-- `shell/apk-custom-packages.sh` — 补 quickstart、luci-app-run、geoview（passwall / passwall2 / ssr-plus）、
-  taskplan、mosdns、openclash 依赖组；补 clashoo↔nikki 冲突、openvpn-server 缺陷、daed 1.28.0 提示
-- `shell/custom-packages.sh` — N1 侧同样条目（保留 CRLF 行尾）
+发布要求前序步骤成功且目标固件存在、非空。N1 额外检查 `PACKAGED_STATUS=success`
+和文件整理步骤的 ready 输出。上传保持 `fail_on_unmatched_files: true`，防止无附件发布。
 
-**插件启用状态调整（x86-64）**
-- **停用 `passwall2`** 及其内核 `xray-core` / `sing-box` / `hysteria`（代理以 openclash 为主，避免重叠）
-- **为 `luci-app-openclash` 启用完整依赖组**：`luci-compat bash curl ip-full unzip
-  kmod-tun kmod-inet-diag kmod-nft-tproxy kmod-nft-socket`
-- `kmod-nft-tproxy` / `kmod-nft-socket` 原随 passwall2 引入，因 openclash 也需要而保留
-- N1 侧 `shell/custom-packages.sh` 的 4 行 `CUSTOM_PACKAGES=` 未变
+## 版本与包维护
 
-**已验证的包可用性**
-- x86-64：`build.sh` 全部 11 个内置包在 25.12.2 存在；`kmod-nft-tproxy` / `kmod-nft-socket`
-  在 kmods `6.12.103` feed；第三方插件由 `run/x86` 提供
-- N1：`build.sh` 全部 23 个包在 24.10.6 存在（含 `kmod-brcmfmac`）
-- 两个插件脚本 `bash -n` 通过
+修改某个目标版本时同步更新 workflow 的 `ImageBuilderVersion`、对应 `.config` 的
+`CONFIG_VERSION_REPO`，以及 README、本文件中的当前版本。版本升级优先只修改相关版本行，
+保留其余配置；N1 与 x86 独立维护版本线。目前 N1 两处均为 24.10.6。
 
-**未做**：`99-custom.sh` 逻辑、工作流结构、N1 与 x86-64 的 `build.sh` 包列表均保持原样。
-其中 `99-custom.sh` 的旁路由网络配置为**有意保留**，见上文「与上游参考仓库的刻意差异」。
+升级或新增包时：
+
+1. 通过 Docker Hub API 确认标签存在：
+   `https://hub.docker.com/v2/repositories/immortalwrt/imagebuilder/tags?name=<前缀>`。
+2. 核对 build.sh 的 PACKAGES、对应插件清单的有效行、`.config` 启用的实际包。
+   配置中的包功能子选项不是独立包名，依赖也可能由 Provides 提供。
+3. 官方索引位于 `https://downloads.immortalwrt.org/releases/<版本>/`：
+   通用包查询 `packages/x86_64/` 或 `packages/aarch64_generic/`，feed 包括
+   base、luci、packages、routing、telephony。
+4. 平台包另查 `targets/x86/64/packages/` 或 `targets/armsr/armv8/packages/`。
+5. **kmod 包另查**相应 target 的 `kmods/<内核版本与哈希>/`，不要只查通用包目录。
+6. OpenClash、partexp、bandix、clashoo、rtp2httpd 等还可能来自第三方源。
+   官方查不到时检查目标实际使用的第三方目录，不要直接判定掉包。
+
+源索引和 Docker 标签会变化，过去某次核对通过不能替代新一轮升级验证。
+
+## 检查与交付
+
+本仓库没有常驻自动化测试套件，按改动范围完成必要检查：
+
+- `git diff --check` 检查空白错误，并审阅实际 diff。
+- shell 改动运行 `bash -n`；以 `/bin/sh` 执行的脚本另运行 `sh -n`。
+- workflow 改动检查 YAML、内嵌 shell 语法、参数传递和成功/失败条件。
+- 公共构建逻辑覆盖两个目标；必要时模拟下载失败、空文件、解包/复制失败及 make 失败。
+- 网络改动检查单网口和多网口分支；本地模拟不能描述为实机验证。
+- Windows 可使用 Git for Windows 自带 Bash。执行检查使用与 CI 一致的 LF 副本，
+  保留未改文件的原有行尾，尤其不要无故重写插件清单。
+- banner 保持窄终端可读，使用 ASCII 图形和基础 ANSI 颜色；不写死版本、IP 或虚构实时状态。
+
+实际固件构建、N1 打包和首次启动效果由 CI 与设备验证。
+交付说明应区分已完成的本地检查与尚未执行的实际构建、实机验证。

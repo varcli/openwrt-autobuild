@@ -1,13 +1,18 @@
 #!/bin/sh
 # 99-custom.sh 就是immortalwrt固件首次启动时运行的脚本 位于固件内的/etc/uci-defaults/99-custom.sh
 
+# 单网口旁路由地址：客户端手动将网关指向 ROUTER_IP
+ROUTER_IP='192.168.123.2'
+MAIN_ROUTER_IP='192.168.123.1'
+NETMASK='255.255.255.0'
+
 # 设置默认防火墙规则，方便虚拟机首次访问 WebUI
 uci set firewall.@zone[1].input='ACCEPT'
 
 # 设置主机名映射
-uci add dhcp domain
-uci set dhcp.@domain[0].name='openwrt.lan'
-uci set dhcp.@domain[0].ip='192.168.123.2'
+uci set dhcp.openwrt_lan=domain
+uci set dhcp.openwrt_lan.name='openwrt.lan'
+uci set dhcp.openwrt_lan.ip="$ROUTER_IP"
 
 
 # 根据网卡数量配置网络
@@ -22,13 +27,20 @@ done
 
 # 网络设置
 if [ "$network_count" -eq 1 ]; then
-  # uci set network.lan.proto='dhcp'
   uci set network.lan.proto='static'
-	uci set network.lan.ipaddr='192.168.123.2'
-	uci set network.lan.netmask='255.255.255.0'
-	uci set network.lan.gateway='192.168.123.1'
-	uci set network.lan.broadcast='192.168.123.255'
-	uci set network.lan.dns='192.168.123.1'
+  uci set network.lan.ipaddr="$ROUTER_IP"
+  uci set network.lan.netmask="$NETMASK"
+  uci set network.lan.gateway="$MAIN_ROUTER_IP"
+  # 由 IP 和掩码自动计算广播地址，避免更换网段后遗留旧值
+  uci -q delete network.lan.broadcast || true
+  uci set network.lan.dns="$MAIN_ROUTER_IP"
+
+  # 旁路由模式：客户端手动指定网关，地址分配由主路由负责
+  # 保留 dnsmasq 的 DNS 服务，仅关闭 LAN 地址分配及 IPv6 通告/中继
+  uci set dhcp.lan.ignore='1'
+  uci set dhcp.lan.dhcpv6='disabled'
+  uci set dhcp.lan.ra='disabled'
+  uci set dhcp.lan.ndp='disabled'
 elif [ "$network_count" -gt 1 ]; then
   uci set network.lan.ipaddr='192.168.100.1'
   uci set network.lan.netmask='255.255.255.0'

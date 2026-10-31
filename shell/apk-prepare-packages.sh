@@ -1,4 +1,5 @@
 #!/bin/sh
+set -e
 
 BASE_DIR="extra-packages"
 TEMP_DIR="$BASE_DIR/temp-unpack"
@@ -16,12 +17,12 @@ for run_file in "$BASE_DIR"/*.run; do
 done
 
 # 1. 收集 run 解压出的 .apk 文件
-find "$TEMP_DIR" -type f -name "*.apk" -exec cp -v {} "$TARGET_DIR"/ \;
+find "$TEMP_DIR" -type f -name "*.apk" -exec sh -c 'destination=$1; shift; for package do cp -v "$package" "$destination/" || exit 1; done' sh "$TARGET_DIR" {} +
 
-# 2. 收集 extra-packages/*/ 下的 .apk 文件（只查一级子目录）
+# 2. 收集 extra-packages/ 根目录和一级子目录下的 .apk 文件（排除解包临时目录）
 
-find "$BASE_DIR" -mindepth 2 -maxdepth 2 -type f -name "*.apk" ! -path "$TEMP_DIR/*" \
+find "$BASE_DIR" -mindepth 1 -maxdepth 2 -type f -name "*.apk" ! -path "$TEMP_DIR/*" \
   -exec echo "👉 Found:" {} \; \
-  -exec cp -v {} "$TARGET_DIR"/ \;
+  -exec sh -c 'destination=$1; shift; for package do cp -v "$package" "$destination/" || exit 1; done' sh "$TARGET_DIR" {} +
 
 echo "✅ 所有 .apk 文件已整理至 $TARGET_DIR/"
