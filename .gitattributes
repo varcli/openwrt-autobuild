@@ -1,4 +1,6 @@
 packages/** text=auto eol=lf
 shell/build-online-upgrade.sh text eol=lf
 shell/firmware-update.py text eol=lf
+shell/prepare-n1-files.sh text eol=lf
+shell/prepare-n1-release.py text eol=lf
 tests/** text=auto eol=lf

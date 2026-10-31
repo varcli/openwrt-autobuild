@@ -31,7 +31,16 @@ on:
           - "6.1.y"
           - "6.6.y"
           - "6.12.y"
+permissions:
+  contents: write
+  actions: write
+
+concurrency:
+  group: build-phicomm-n1
+  cancel-in-progress: false
+
 env:
+  UPDATE_REPOSITORY: ${{ github.repository }}
   TZ: Asia/Shanghai
   OPENWRT_KERNEL: ${{ inputs.openwrt_kernel || '6.1.y_6.6.y' }}
   ROOTFS_PARTSIZE: ${{ inputs.rootfs_partsize || '1024' }}
@@ -51,6 +60,10 @@ jobs:
       - name: 拉取仓库
         uses: actions/checkout@v4
 
+      - name: 准备发版标识
+        run: |
+          echo "RELEASE_TAG=phicomm-n1-$(date +'%Y.%m.%d-%H%M')-${{ github.run_id }}.${{ github.run_attempt }}" >> "$GITHUB_ENV"
+
       - name: 加载自定义配置
         run: |
           chmod +x ${{ github.workspace }}/${{ matrix.target }}/build.sh
@@ -68,6 +81,7 @@ jobs:
             -e ROOTFS_PARTSIZE \
             -e INCLUDE_DOCKER \
             -e PROFILE=generic \
+            -e UPDATE_REPOSITORY \
             immortalwrt/imagebuilder:${{ env.ImageBuilderVersion }} /bin/bash /home/build/immortalwrt/build.sh
 
           echo "COMPILESTATUS=success" >> $GITHUB_ENV
@@ -87,11 +101,13 @@ jobs:
         uses: ophub/flippy-openwrt-actions@main
         if: env.COMPILESTATUS == 'success' && success()
         env:
-          OPENWRT_ARMVIRT: ${{ steps.find_rootfs.outputs.file }}
+          OPENWRT_ARMSR: ${{ steps.find_rootfs.outputs.file }}
           PACKAGE_SOC: s905d
           KERNEL_VERSION_NAME: ${{ env.OPENWRT_KERNEL }}
           KERNEL_AUTO_LATEST: true
           WHOAMI: varcli
+          GZIP_IMGS: gz
+          SAVE_OPENWRT_ROOTFS: false
 
       - name: 整理文件
         id: files
@@ -103,14 +119,7 @@ jobs:
           fi
           test -n "$PACKAGED_OUTPUTPATH"
           test -d "$PACKAGED_OUTPUTPATH"
-          ls -l "$PACKAGED_OUTPUTPATH"
-          mkdir -p ${{ github.workspace }}/dist
-          cp "$PACKAGED_OUTPUTPATH"/* ${{ github.workspace }}/dist
-          rm -rf ${{ github.workspace }}/dist/*-kernel.bin
-          rm -rf ${{ github.workspace }}/dist/*.manifest
-          rm -rf ${{ github.workspace }}/dist/*.json
-          rm -rf ${{ github.workspace }}/dist/sha256sums
-          find "${{ github.workspace }}/dist" -maxdepth 1 -type f -name '*.img.gz' -size +0c -print -quit | grep -q .
+          python3 shell/prepare-n1-release.py "$PACKAGED_OUTPUTPATH" dist
           echo "ready=true" >> "$GITHUB_OUTPUT"
           ls -l ${{ github.workspace }}/dist
 
@@ -118,7 +127,6 @@ jobs:
         id: release_info
         if: env.PACKAGED_STATUS == 'success' && steps.files.outputs.ready == 'true' && success()
         run: |
-          echo "release_name=$(date +"%Y.%m.%d-%H%M")" >> $GITHUB_OUTPUT
           touch release.txt
           echo "${{ matrix.target }} 固件" >> release.txt
           echo "内核版本 $OPENWRT_KERNEL" >> release.txt
@@ -127,6 +135,9 @@ jobs:
           fi
           echo "账户：root" >> release.txt
           echo "密码：无" >> release.txt
+          echo "晶晨宝盒更新仓库：https://github.com/$UPDATE_REPOSITORY" >> release.txt
+          echo "Tags 关键字：phicomm-n1；固件后缀：.img.gz。" >> release.txt
+          echo "完整更新按插件设置的内核分支匹配；本次打包内核分支为 $OPENWRT_KERNEL。" >> release.txt
           echo "单网口旁路由默认地址：http://192.168.123.2" >> release.txt
           echo "DHCPv4、DHCPv6、IPv6 RA 和 NDP 服务默认关闭，DNS 服务保留。" >> release.txt
           echo "客户端使用同网段地址，手动设置网关为 192.168.123.2；需要 DNS 经旁路由处理时，DNS 也设为 192.168.123.2。" >> release.txt
@@ -137,8 +148,9 @@ jobs:
         if: env.PACKAGED_STATUS == 'success' && steps.files.outputs.ready == 'true' && success()
         uses: softprops/action-gh-release@v2
         with:
-          # name: ${{ matrix.target }}⭐️${{ steps.release_info.outputs.release_name }}
-          tag_name: ${{ matrix.target }}⭐️${{ steps.release_info.outputs.release_name }}
+          name: ${{ env.RELEASE_TAG }}
+          tag_name: ${{ env.RELEASE_TAG }}
+          target_commitish: ${{ github.sha }}
           body_path: release.txt
           fail_on_unmatched_files: true
           files: |

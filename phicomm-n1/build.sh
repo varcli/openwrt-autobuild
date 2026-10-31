@@ -73,7 +73,8 @@ fi
 echo "$(date '+%Y-%m-%d %H:%M:%S') - 构建镜像，包含以下插件:"
 echo "$PACKAGES"
 
-if ! make image PROFILE="$PROFILE" PACKAGES="$PACKAGES" FILES="/home/build/immortalwrt/files" ROOTFS_PARTSIZE="$ROOTFS_PARTSIZE"; then
+source shell/prepare-n1-files.sh
+if ! make image PROFILE="$PROFILE" PACKAGES="$PACKAGES" FILES="$N1_FILES" ROOTFS_PARTSIZE="$ROOTFS_PARTSIZE"; then
     echo "$(date '+%Y-%m-%d %H:%M:%S') - Error: 编译固件失败!"
     exit 1
 fi

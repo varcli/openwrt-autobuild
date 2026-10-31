@@ -21,6 +21,8 @@ shell/*custom-packages.sh            各目标插件清单
 shell/*prepare-packages.sh           解包第三方 .run 并收集 apk/ipk
 shell/build-online-upgrade.sh        使用 ImageBuilder 的 apk-tools 打包在线更新插件
 shell/firmware-update.py             生成构建标识、更新清单与 SHA256
+shell/prepare-n1-files.sh            暂存 N1 覆盖层并设置晶晨宝盒更新仓库
+shell/prepare-n1-release.py          校验 N1 发布镜像名称、内核分支和压缩数据
 packages/luci-app-online-upgrade/    x86 在线更新插件源码
 files/                              两目标共享的固件文件覆盖层
 files/etc/uci-defaults/99-custom.sh   首次启动网络与服务默认值
@@ -142,6 +144,19 @@ extra-packages 根目录、一级子目录的散包。解包和复制失败必�
 - 分区布局变化必须提示；保留配置通过系统备份清单处理，不承诺保留整个 overlay 或额外磁盘数据。
 - 更新信任来源是配置的 GitHub 仓库及 HTTPS，SHA256 校验不等于独立固件签名。
 
+## N1 发布与晶晨宝盒
+
+- 默认固件仓库来自 `UPDATE_REPOSITORY`（workflow 中为 github.repository），Tags 关键字为
+  phicomm-n1，后缀为 .img.gz。固件仓库与内核仓库是独立设置，不要同时改掉内核下载来源。
+- `prepare-n1-files.sh` 将共享 files 复制到临时 N1 覆盖层，生成晶晨宝盒的首次启动配置。
+  只替换插件自带的公共默认仓库及本仓库对应配置，保留用户另行指定的仓库，不修改共享 files。
+- 发布标签使用 ASCII 的 phicomm-n1-日期-构建编号。镜像保留 flippy 原名，必须包含
+  openwrt_s905d_n1_ 和完整的 k主版本.次版本.补丁版本，不能删掉板型或内核信息。
+- `prepare-n1-release.py` 在发布前检查文件名、gzip 完整性和所选内核分支，生成 sha256sums；
+  只发布验证过的 N1 镜像及校验文件，不发布 rootfs 中间包。
+- 晶晨宝盒按最新匹配 Release 的 BOARD=n1 和所选内核分支查找附件；如果最新 Release
+  没有某分支，需在插件中选择实际提供的分支，不能仅看仓库历史上是否存在该内核。
+
 ## 版本与包维护
 
 修改某个目标版本时同步更新 workflow 的 `ImageBuilderVersion`、对应 `.config` 的
@@ -166,10 +181,12 @@ extra-packages 根目录、一级子目录的散包。解包和复制失败必�
 
 ## 检查与交付
 
-在线更新功能的离线测试位于 `tests/`，不会实际下载或刷写设备。按改动范围完成必要检查：
+本地 `tests/` 已被 Git 忽略，不随仓库分发。若工作区存在这些离线用例，可运行以下命令；
+新检出的仓库按实际文件完成语法检查和 CI 验证，不假定测试目录存在。
 
 - `python -X utf8 -m unittest discover -s tests -v` 检查清单生成和后端失败处理。
 - `node tests/test_online_upgrade_ui.js` 检查页面权限、下载/确认分离及分区变更提示。
+- `python -X utf8 -m unittest discover -s tests -p test_n1_release.py -v` 检查 N1 镜像发布和默认仓库配置。
 - `git diff --check` 检查空白错误，并审阅实际 diff。
 - shell 改动运行 `bash -n`；以 `/bin/sh` 执行的脚本另运行 `sh -n`。
 - workflow 改动检查 YAML、内嵌 shell 语法、参数传递和成功/失败条件。
